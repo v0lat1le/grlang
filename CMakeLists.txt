@@ -4,7 +4,6 @@ project(grlang VERSION 0.0.0 LANGUAGES CXX)
 
 
 include(CTest)
-set(ENABLE_TESTING True)
 
 
 add_library(project_cxx_options INTERFACE)
