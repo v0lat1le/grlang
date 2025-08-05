@@ -37,8 +37,20 @@ void test_arithmetic() {
     assert(mul3->inputs.at(1)->value_int == 6);
 }
 
+void test_declarations() {
+    auto node = grlang::parse::parse("a = 13 b = 7 return a-b");
+    assert(node->type == grlang::node::NodeType::RETURN);
+    assert(node->inputs.at(0)->type == grlang::node::NodeType::OPERATION_SUB);
+    auto sub = node->inputs.at(0);
+    assert(sub->inputs.at(0)->type == grlang::node::NodeType::CONSTANT_INT);
+    assert(sub->inputs.at(0)->value_int == 13);
+    assert(sub->inputs.at(1)->type == grlang::node::NodeType::CONSTANT_INT);
+    assert(sub->inputs.at(1)->value_int == 7);
+}
+
 int main() {
     test_return();
     test_arithmetic();
+    test_declarations();
     return 0;
 }

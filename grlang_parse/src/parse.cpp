@@ -1,4 +1,5 @@
 #include <stdexcept>
+#include <unordered_map>
 
 #include "grlang/parse.h"
 
@@ -48,6 +49,7 @@ namespace {
         KEYWORD    = 1ull << 61,
         LITERAL    = 2ull << 61,
         OPERATOR   = 3ull << 61,
+        STRUCTURE  = 4ull << 61,
         SPECIAL    = 7ull << 61,
 
         KEYWORD_RETURN = KEYWORD | 1,
@@ -64,6 +66,10 @@ namespace {
         OPERATOR_LEQ   = OPERATOR | 8,
         OPERATOR_EQ    = OPERATOR | 9,
         OPERATOR_NEQ   = OPERATOR | 10,
+
+        ASSIGNMENT          = STRUCTURE | 1,
+        STRUCTURE_NEW_SCOPE = STRUCTURE | 2,
+        STRUCTURE_END_SCOPE = STRUCTURE | 3,
 
         END_OF_INPUT  = SPECIAL | 1,
         INVALID_INPUT = SPECIAL | 2,
@@ -104,11 +110,21 @@ namespace {
         if (code[0] == '/') {
             return {TokenType::OPERATOR_SLASH, read_chars(code, 1)};
         }
-        if (code.size() <= 1) {
+        if (code[0] == '/') {
+            return {TokenType::OPERATOR_SLASH, read_chars(code, 1)};
+        }
+        if (code[0] == '/') {
+            return {TokenType::OPERATOR_SLASH, read_chars(code, 1)};
+        }
+        if (code.size() < 2) {
             return {TokenType::END_OF_INPUT, code};
         }
-        if (code[0] == '=' && code[1] == '=') {
-            return {TokenType::OPERATOR_EQ, read_chars(code, 2)};
+        if (code[0] == '=') {
+            if (code[1] == '=') {
+                return {TokenType::OPERATOR_EQ, read_chars(code, 2)};
+            } else {
+                return {TokenType::ASSIGNMENT, read_chars(code, 1)};
+            }
         }
         if (code[0] == '!' && code[1] == '=') {
             return {TokenType::OPERATOR_NEQ, read_chars(code, 2)};
@@ -130,16 +146,26 @@ namespace {
         return {TokenType::INVALID_INPUT, code};
     }
 
-    struct Tokenizer {
-        Token next_token;
+    struct Parser {
         std::string_view code;
+        Token next_token;
+        std::vector<std::unordered_map<std::string_view, std::shared_ptr<grlang::node::Node>>> scopes;
 
-        Tokenizer(std::string_view code_) : code(code_) {
+        Parser(std::string_view code_) : code(code_) {
+            new_scope();
             advance();
         }
 
         void advance() {
             next_token = ::read_token(code);
+        }
+
+        void new_scope() {
+            scopes.emplace_back();
+        }
+
+        void end_scope() {
+            scopes.pop_back();
         }
     };
 
@@ -197,22 +223,28 @@ namespace {
         }
     }
 
-    std::shared_ptr<grlang::node::Node> parse_expression(Tokenizer& tokenizer, uint8_t prev_precedence) {
+    std::shared_ptr<grlang::node::Node> parse_expression(Parser& parser, uint8_t prev_precedence) {
         std::shared_ptr<grlang::node::Node> result;
-        switch (tokenizer.next_token.type) {
+        switch (parser.next_token.type) {
             case TokenType::OPERATOR_MINUS:
             {
-                tokenizer.advance();
+                parser.advance();
                 result = std::make_shared<grlang::node::Node>(
                     grlang::node::NodeType::OPERATION_NEG,
-                    std::vector<std::shared_ptr<grlang::node::Node>>{parse_expression(tokenizer, operation_precedence(grlang::node::NodeType::OPERATION_NEG))});
+                    std::vector<std::shared_ptr<grlang::node::Node>>{parse_expression(parser, operation_precedence(grlang::node::NodeType::OPERATION_NEG))});
+            }
+            break;
+            case TokenType::IDENTIFIER:
+            {
+                result = parser.scopes.back().at(parser.next_token.value);
+                parser.advance();
             }
             break;
             case TokenType::LITERAL_INT:
             {
                 result = std::make_shared<grlang::node::Node>(grlang::node::NodeType::CONSTANT_INT);
-                result->value_int = svtoi(tokenizer.next_token.value);
-                tokenizer.advance();
+                result->value_int = svtoi(parser.next_token.value);
+                parser.advance();
             }
             break;
             default:
@@ -220,42 +252,65 @@ namespace {
         }
 
         while (true) {
-            if ((static_cast<uint64_t>(tokenizer.next_token.type) & (7ull << 61)) != static_cast<uint64_t>(TokenType::OPERATOR)) {
+            if ((static_cast<uint64_t>(parser.next_token.type) & (7ull << 61)) != static_cast<uint64_t>(TokenType::OPERATOR)) {
                 return result;
             }
-            auto node_type = operation_type(tokenizer.next_token.type);
+            auto node_type = operation_type(parser.next_token.type);
             auto precedence = operation_precedence(node_type);
             if (prev_precedence < precedence) {
                 return result;
             }
-            tokenizer.advance();
+            parser.advance();
             result = std::make_shared<grlang::node::Node>(
                 node_type,
-                std::vector<std::shared_ptr<grlang::node::Node>>{result, parse_expression(tokenizer, precedence)});
+                std::vector<std::shared_ptr<grlang::node::Node>>{result, parse_expression(parser, precedence)});
         }
     }
 
-    std::shared_ptr<grlang::node::Node> parse_declaration(Tokenizer& tokenizer) {
+    std::shared_ptr<grlang::node::Node> parse_declaration(Parser& parser) {
         return nullptr;
     }
-}
 
-std::shared_ptr<grlang::node::Node> grlang::parse::parse(std::string_view code) {
-    Tokenizer tokenizer(code);
-    while(true) {
-        switch (tokenizer.next_token.type)
+    std::shared_ptr<grlang::node::Node> parse_statement(Parser& parser) {
+        switch (parser.next_token.type)
         {
         case TokenType::END_OF_INPUT:
             return nullptr;
         case TokenType::KEYWORD_RETURN:
         {
-            tokenizer.advance();
+            parser.advance();
             auto result = std::make_shared<grlang::node::Node>(grlang::node::NodeType::RETURN);
-            result->inputs.push_back(parse_expression(tokenizer, 255));
+            result->inputs.push_back(parse_expression(parser, 255));
+            return result;
+        }
+        case TokenType::IDENTIFIER:
+        {
+            auto name = parser.next_token.value;
+            parser.advance();
+            if (parser.next_token.type != TokenType::ASSIGNMENT) {
+                throw std::runtime_error("Expected assignment");
+            }
+            parser.advance();
+            auto result = parse_expression(parser, 255);
+            parser.scopes.back()[name] = result;
             return result;
         }
         default:
-            return parse_declaration(tokenizer);
+            throw std::runtime_error("Unexpected token");
         }
     }
+
+    std::shared_ptr<grlang::node::Node> parse_block(Parser& parser) {
+        std::shared_ptr<grlang::node::Node> result;
+        while (parser.next_token.type != TokenType::END_OF_INPUT)
+        {
+            result = parse_statement(parser);
+        }
+        return result;
+    }
+}
+
+std::shared_ptr<grlang::node::Node> grlang::parse::parse(std::string_view code) {
+    Parser parser(code);
+    return parse_block(parser);
 }
