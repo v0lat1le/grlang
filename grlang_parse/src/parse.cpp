@@ -1,4 +1,5 @@
 #include <stdexcept>
+#include <cstdint>
 #include <unordered_map>
 
 #include "grlang/parse.h"
@@ -44,7 +45,7 @@ namespace {
         return result;
     }
 
-    enum class TokenType : u_int64_t {
+    enum class TokenType : std::uint64_t {
         IDENTIFIER = 0ull,
         KEYWORD    = 1ull << 61,
         LITERAL    = 2ull << 61,
@@ -197,7 +198,7 @@ namespace {
         }
     }
 
-    u_int8_t operation_precedence(grlang::node::NodeType type) {
+    std::uint8_t operation_precedence(grlang::node::NodeType type) {
         using grlang::node::NodeType;
 
         switch (type)
@@ -223,7 +224,7 @@ namespace {
         }
     }
 
-    std::shared_ptr<grlang::node::Node> parse_expression(Parser& parser, uint8_t prev_precedence) {
+    std::shared_ptr<grlang::node::Node> parse_expression(Parser& parser, std::uint8_t prev_precedence) {
         std::shared_ptr<grlang::node::Node> result;
         switch (parser.next_token.type) {
             case TokenType::OPERATOR_MINUS:
@@ -252,7 +253,7 @@ namespace {
         }
 
         while (true) {
-            if ((static_cast<uint64_t>(parser.next_token.type) & (7ull << 61)) != static_cast<uint64_t>(TokenType::OPERATOR)) {
+            if ((static_cast<std::uint64_t>(parser.next_token.type) & (7ull << 61)) != static_cast<std::uint64_t>(TokenType::OPERATOR)) {
                 return result;
             }
             auto node_type = operation_type(parser.next_token.type);
