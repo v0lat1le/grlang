@@ -43,15 +43,30 @@ namespace {
         return result;
     }
 
-    enum class TokenType {
-        IDENTIFIER,
-        LITERAL_INT,
-        OPERATION_NIL,
-        OPERATION_ADD,
-        OPERATION_MUL,
-        KEYWORD_RETURN,
-        END_OF_INPUT,
-        INVALID_INPUT,
+    enum class TokenType : u_int64_t {
+        IDENTIFIER = 0ull,
+        KEYWORD    = 1ull << 61,
+        LITERAL    = 2ull << 61,
+        OPERATOR   = 3ull << 61,
+        SPECIAL    = 7ull << 61,
+
+        KEYWORD_RETURN = KEYWORD | 1,
+
+        LITERAL_INT = LITERAL | 1,
+
+        OPERATOR_PLUS  = OPERATOR | 1,
+        OPERATOR_MINUS = OPERATOR | 2,
+        OPERATOR_STAR  = OPERATOR | 3,
+        OPERATOR_SLASH = OPERATOR | 4,
+        OPERATOR_GT    = OPERATOR | 5,
+        OPERATOR_LT    = OPERATOR | 6,
+        OPERATOR_GEQ   = OPERATOR | 7,
+        OPERATOR_LEQ   = OPERATOR | 8,
+        OPERATOR_EQ    = OPERATOR | 9,
+        OPERATOR_NEQ   = OPERATOR | 10,
+
+        END_OF_INPUT  = SPECIAL | 1,
+        INVALID_INPUT = SPECIAL | 2,
     };
 
     struct Token {
@@ -78,10 +93,39 @@ namespace {
             return check_keyword({TokenType::IDENTIFIER, read_identifier(code)});
         }
         if (code[0] == '+') {
-            return {TokenType::OPERATION_ADD, read_chars(code, 1)};
+            return {TokenType::OPERATOR_PLUS, read_chars(code, 1)};
+        }
+        if (code[0] == '-') {
+            return {TokenType::OPERATOR_MINUS, read_chars(code, 1)};
         }
         if (code[0] == '*') {
-            return {TokenType::OPERATION_MUL, read_chars(code, 1)};
+            return {TokenType::OPERATOR_STAR, read_chars(code, 1)};
+        }
+        if (code[0] == '/') {
+            return {TokenType::OPERATOR_SLASH, read_chars(code, 1)};
+        }
+        if (code.size() <= 1) {
+            return {TokenType::END_OF_INPUT, code};
+        }
+        if (code[0] == '=' && code[1] == '=') {
+            return {TokenType::OPERATOR_EQ, read_chars(code, 2)};
+        }
+        if (code[0] == '!' && code[1] == '=') {
+            return {TokenType::OPERATOR_NEQ, read_chars(code, 2)};
+        }
+        if (code[0] == '>') {
+            if (code[1] == '=') {
+                return {TokenType::OPERATOR_GEQ, read_chars(code, 2)}; 
+            } else {
+                return {TokenType::OPERATOR_GT, read_chars(code, 1)};
+            }
+        }
+        if (code[0] == '<') {
+            if (code[1] == '=') {
+                return {TokenType::OPERATOR_LEQ, read_chars(code, 2)}; 
+            } else {
+                return {TokenType::OPERATOR_LT, read_chars(code, 1)};
+            }
         }
         return {TokenType::INVALID_INPUT, code};
     }
@@ -99,9 +143,71 @@ namespace {
         }
     };
 
-    std::shared_ptr<grlang::node::Node> parse_expression(Tokenizer& tokenizer, TokenType prev_op) {
+    grlang::node::NodeType operation_type(TokenType token) {
+        switch (token)
+        {
+        case TokenType::OPERATOR_PLUS:
+            return grlang::node::NodeType::OPERATION_ADD;
+        case TokenType::OPERATOR_MINUS:
+            return grlang::node::NodeType::OPERATION_SUB;
+        case TokenType::OPERATOR_STAR:
+            return grlang::node::NodeType::OPERATION_MUL;
+        case TokenType::OPERATOR_SLASH:
+            return grlang::node::NodeType::OPERATION_DIV;
+        case TokenType::OPERATOR_LT:
+            return grlang::node::NodeType::OPERATION_LT;
+        case TokenType::OPERATOR_GT:
+            return grlang::node::NodeType::OPERATION_GT;
+        case TokenType::OPERATOR_LEQ:
+            return grlang::node::NodeType::OPERATION_LEQ;
+        case TokenType::OPERATOR_GEQ:
+            return grlang::node::NodeType::OPERATION_GEQ;
+        case TokenType::OPERATOR_EQ:
+            return grlang::node::NodeType::OPERATION_EQ;
+        case TokenType::OPERATOR_NEQ:
+            return grlang::node::NodeType::OPERATION_NEQ;
+        default:
+            throw std::runtime_error("Unsupported token type");
+        }
+    }
+
+    u_int8_t operation_precedence(grlang::node::NodeType type) {
+        using grlang::node::NodeType;
+
+        switch (type)
+        {
+        case NodeType::OPERATION_NEG:
+            return 2;
+        case NodeType::OPERATION_MUL:
+        case NodeType::OPERATION_DIV:
+            return 3;
+        case NodeType::OPERATION_ADD:
+        case NodeType::OPERATION_SUB:
+            return 4;
+        case NodeType::OPERATION_GT:
+        case NodeType::OPERATION_GEQ:
+        case NodeType::OPERATION_LT:
+        case NodeType::OPERATION_LEQ:
+            return 6;
+        case NodeType::OPERATION_EQ:
+        case NodeType::OPERATION_NEQ:
+            return 7;
+        default:
+            return 255;
+        }
+    }
+
+    std::shared_ptr<grlang::node::Node> parse_expression(Tokenizer& tokenizer, uint8_t prev_precedence) {
         std::shared_ptr<grlang::node::Node> result;
         switch (tokenizer.next_token.type) {
+            case TokenType::OPERATOR_MINUS:
+            {
+                tokenizer.advance();
+                result = std::make_shared<grlang::node::Node>(
+                    grlang::node::NodeType::OPERATION_NEG,
+                    std::vector<std::shared_ptr<grlang::node::Node>>{parse_expression(tokenizer, operation_precedence(grlang::node::NodeType::OPERATION_NEG))});
+            }
+            break;
             case TokenType::LITERAL_INT:
             {
                 result = std::make_shared<grlang::node::Node>(grlang::node::NodeType::CONSTANT_INT);
@@ -114,34 +220,18 @@ namespace {
         }
 
         while (true) {
-            switch (tokenizer.next_token.type) {
-                case TokenType::OPERATION_ADD:
-                {
-                    if (prev_op > tokenizer.next_token.type) {
-                        return result;
-                    }
-
-                    tokenizer.advance();
-                    result = std::make_shared<grlang::node::Node>(
-                        grlang::node::NodeType::OPERATION_ADD,
-                        std::vector<std::shared_ptr<grlang::node::Node>>{result, parse_expression(tokenizer, TokenType::OPERATION_ADD)});
-                }
-                break;
-                case TokenType::OPERATION_MUL:
-                {
-                    if (prev_op > tokenizer.next_token.type) {
-                        return result;
-                    }
-
-                    tokenizer.advance();
-                    result = std::make_shared<grlang::node::Node>(
-                        grlang::node::NodeType::OPERATION_MUL,
-                        std::vector<std::shared_ptr<grlang::node::Node>>{result, parse_expression(tokenizer, TokenType::OPERATION_MUL)});
-                }
-                break;
-                default:
-                    return result;
+            if ((static_cast<uint64_t>(tokenizer.next_token.type) & (7ull << 61)) != static_cast<uint64_t>(TokenType::OPERATOR)) {
+                return result;
             }
+            auto node_type = operation_type(tokenizer.next_token.type);
+            auto precedence = operation_precedence(node_type);
+            if (prev_precedence < precedence) {
+                return result;
+            }
+            tokenizer.advance();
+            result = std::make_shared<grlang::node::Node>(
+                node_type,
+                std::vector<std::shared_ptr<grlang::node::Node>>{result, parse_expression(tokenizer, precedence)});
         }
     }
 
@@ -161,7 +251,7 @@ std::shared_ptr<grlang::node::Node> grlang::parse::parse(std::string_view code) 
         {
             tokenizer.advance();
             auto result = std::make_shared<grlang::node::Node>(grlang::node::NodeType::RETURN);
-            result->inputs.push_back(parse_expression(tokenizer, TokenType::OPERATION_NIL));
+            result->inputs.push_back(parse_expression(tokenizer, 255));
             return result;
         }
         default:

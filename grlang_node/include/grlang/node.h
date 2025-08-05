@@ -10,8 +10,17 @@ namespace grlang {
             START,
             RETURN,
             CONSTANT_INT,
+            OPERATION_NEG,
             OPERATION_ADD,
+            OPERATION_SUB,
             OPERATION_MUL,
+            OPERATION_DIV,
+            OPERATION_LT,
+            OPERATION_LEQ,
+            OPERATION_GT,
+            OPERATION_GEQ,
+            OPERATION_EQ,
+            OPERATION_NEQ,
         };
 
         struct Node {
