@@ -1,15 +1,23 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <vector>
 
 
 namespace grlang {
     namespace node {
-        enum class NodeType {
-            START,
-            RETURN,
+        enum class NodeType : std::uint64_t {
+            CONTROL_START,
+            CONTROL_STOP,
+            CONTROL_REGION,
+            CONTROL_RETURN,
+            CONTROL_IFELSE,
+
             CONSTANT_INT,
+            DATA_PHI,
+            DATA_VAR,
+
             OPERATION_NEG,
             OPERATION_ADD,
             OPERATION_SUB,

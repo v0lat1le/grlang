@@ -48,12 +48,17 @@ namespace {
     enum class TokenType : std::uint64_t {
         IDENTIFIER = 0ull,
         KEYWORD    = 1ull << 61,
-        LITERAL    = 2ull << 61,
-        OPERATOR   = 3ull << 61,
-        STRUCTURE  = 4ull << 61,
+        TYPE       = 2ull << 61,
+        LITERAL    = 3ull << 61,
+        OPERATOR   = 4ull << 61,
+        STRUCTURE  = 5ull << 61,
         SPECIAL    = 7ull << 61,
 
         KEYWORD_RETURN = KEYWORD | 1,
+        KEYWORD_IF     = KEYWORD | 2,
+        KEYWORD_ELSE   = KEYWORD | 3,
+
+        TYPE_INT = TYPE | 1,   
 
         LITERAL_INT = LITERAL | 1,
 
@@ -68,9 +73,14 @@ namespace {
         OPERATOR_EQ    = OPERATOR | 9,
         OPERATOR_NEQ   = OPERATOR | 10,
 
-        ASSIGNMENT          = STRUCTURE | 1,
-        STRUCTURE_NEW_SCOPE = STRUCTURE | 2,
-        STRUCTURE_END_SCOPE = STRUCTURE | 3,
+        EQUALS      = STRUCTURE | 1,
+        COLON       = STRUCTURE | 2,
+        SEMICOLON   = STRUCTURE | 3,
+        ARROW       = STRUCTURE | 4,
+        OPEN_CURLY  = STRUCTURE | 5,
+        CLOSE_CURLY = STRUCTURE | 6,
+        OPEN_ROUND  = STRUCTURE | 7,
+        CLOSE_ROUND = STRUCTURE | 8,
 
         END_OF_INPUT  = SPECIAL | 1,
         INVALID_INPUT = SPECIAL | 2,
@@ -84,6 +94,12 @@ namespace {
     Token check_keyword(Token token) {
         if (token.value == "return") {
             return {TokenType::KEYWORD_RETURN, token.value};
+        } else if (token.value == "if") {
+            return {TokenType::KEYWORD_IF, token.value};
+        } else if (token.value == "else") {
+            return {TokenType::KEYWORD_ELSE, token.value};
+        } else if (token.value == "int") {
+            return {TokenType::TYPE_INT, token.value};
         }
         return token;
     }
@@ -99,50 +115,30 @@ namespace {
         if (isalpha(code[0])) {
             return check_keyword({TokenType::IDENTIFIER, read_identifier(code)});
         }
-        if (code[0] == '+') {
-            return {TokenType::OPERATOR_PLUS, read_chars(code, 1)};
+        switch (code[0]) {
+        case '+': return {TokenType::OPERATOR_PLUS, read_chars(code, 1)};
+        case '-': return {TokenType::OPERATOR_MINUS, read_chars(code, 1)};
+        case '*': return {TokenType::OPERATOR_STAR, read_chars(code, 1)};
+        case '/': return {TokenType::OPERATOR_SLASH, read_chars(code, 1)};
+        case '{': return {TokenType::OPEN_CURLY, read_chars(code, 1)};
+        case '}': return {TokenType::CLOSE_CURLY, read_chars(code, 1)};
+        case '(': return {TokenType::OPEN_ROUND, read_chars(code, 1)};
+        case ')': return {TokenType::CLOSE_ROUND, read_chars(code, 1)};
+        case ':': return {TokenType::COLON, read_chars(code, 1)};
         }
-        if (code[0] == '-') {
-            return {TokenType::OPERATOR_MINUS, read_chars(code, 1)};
-        }
-        if (code[0] == '*') {
-            return {TokenType::OPERATOR_STAR, read_chars(code, 1)};
-        }
-        if (code[0] == '/') {
-            return {TokenType::OPERATOR_SLASH, read_chars(code, 1)};
-        }
-        if (code[0] == '/') {
-            return {TokenType::OPERATOR_SLASH, read_chars(code, 1)};
-        }
-        if (code[0] == '/') {
-            return {TokenType::OPERATOR_SLASH, read_chars(code, 1)};
-        }
+
         if (code.size() < 2) {
             return {TokenType::END_OF_INPUT, code};
         }
-        if (code[0] == '=') {
-            if (code[1] == '=') {
-                return {TokenType::OPERATOR_EQ, read_chars(code, 2)};
-            } else {
-                return {TokenType::ASSIGNMENT, read_chars(code, 1)};
-            }
-        }
-        if (code[0] == '!' && code[1] == '=') {
-            return {TokenType::OPERATOR_NEQ, read_chars(code, 2)};
-        }
-        if (code[0] == '>') {
-            if (code[1] == '=') {
-                return {TokenType::OPERATOR_GEQ, read_chars(code, 2)}; 
-            } else {
-                return {TokenType::OPERATOR_GT, read_chars(code, 1)};
-            }
-        }
-        if (code[0] == '<') {
-            if (code[1] == '=') {
-                return {TokenType::OPERATOR_LEQ, read_chars(code, 2)}; 
-            } else {
-                return {TokenType::OPERATOR_LT, read_chars(code, 1)};
-            }
+        switch (code[0]) {
+        case '=':
+            return code[1] == '=' ? Token{TokenType::OPERATOR_EQ, read_chars(code, 2)} : Token{TokenType::EQUALS, read_chars(code, 1)};
+        case '!':
+            return code[1] == '=' ? Token{TokenType::OPERATOR_NEQ, read_chars(code, 2)} : Token{TokenType::INVALID_INPUT, code};
+        case '>':
+            return code[1] == '=' ? Token{TokenType::OPERATOR_GEQ, read_chars(code, 2)} : Token{TokenType::OPERATOR_GT, read_chars(code, 1)};
+        case '<':
+            return code[1] == '=' ? Token{TokenType::OPERATOR_LEQ, read_chars(code, 2)} : Token{TokenType::OPERATOR_LT, read_chars(code, 1)};
         }
         return {TokenType::INVALID_INPUT, code};
     }
@@ -153,19 +149,22 @@ namespace {
         std::vector<std::unordered_map<std::string_view, std::shared_ptr<grlang::node::Node>>> scopes;
 
         Parser(std::string_view code_) : code(code_) {
-            new_scope();
-            advance();
+            scopes.emplace_back(); // global scope
+            read_next_token();
         }
 
-        void advance() {
+        void read_next_token() {
             next_token = ::read_token(code);
         }
 
         void new_scope() {
-            scopes.emplace_back();
+            scopes.push_back(scopes.back());
         }
 
         void end_scope() {
+            for (auto& [key, val] : scopes.at(scopes.size()-2)){
+                val = scopes.back().at(key);
+            }
             scopes.pop_back();
         }
     };
@@ -229,7 +228,7 @@ namespace {
         switch (parser.next_token.type) {
             case TokenType::OPERATOR_MINUS:
             {
-                parser.advance();
+                parser.read_next_token();
                 result = std::make_shared<grlang::node::Node>(
                     grlang::node::NodeType::OPERATION_NEG,
                     std::vector<std::shared_ptr<grlang::node::Node>>{parse_expression(parser, operation_precedence(grlang::node::NodeType::OPERATION_NEG))});
@@ -238,14 +237,14 @@ namespace {
             case TokenType::IDENTIFIER:
             {
                 result = parser.scopes.back().at(parser.next_token.value);
-                parser.advance();
+                parser.read_next_token();
             }
             break;
             case TokenType::LITERAL_INT:
             {
                 result = std::make_shared<grlang::node::Node>(grlang::node::NodeType::CONSTANT_INT);
                 result->value_int = svtoi(parser.next_token.value);
-                parser.advance();
+                parser.read_next_token();
             }
             break;
             default:
@@ -261,16 +260,14 @@ namespace {
             if (prev_precedence < precedence) {
                 return result;
             }
-            parser.advance();
+            parser.read_next_token();
             result = std::make_shared<grlang::node::Node>(
                 node_type,
                 std::vector<std::shared_ptr<grlang::node::Node>>{result, parse_expression(parser, precedence)});
         }
     }
 
-    std::shared_ptr<grlang::node::Node> parse_declaration(Parser& parser) {
-        return nullptr;
-    }
+    std::shared_ptr<grlang::node::Node> parse_block(Parser& parser);
 
     std::shared_ptr<grlang::node::Node> parse_statement(Parser& parser) {
         switch (parser.next_token.type)
@@ -279,21 +276,61 @@ namespace {
             return nullptr;
         case TokenType::KEYWORD_RETURN:
         {
-            parser.advance();
-            auto result = std::make_shared<grlang::node::Node>(grlang::node::NodeType::RETURN);
+            parser.read_next_token();
+            auto result = std::make_shared<grlang::node::Node>(grlang::node::NodeType::CONTROL_RETURN);
             result->inputs.push_back(parse_expression(parser, 255));
             return result;
+        }
+        case TokenType::KEYWORD_IF:
+        {
+            parser.read_next_token();
+            auto condition = parse_expression(parser, 255);
+            if (parser.next_token.type != TokenType::OPEN_CURLY) {
+                throw std::runtime_error("Expected {");
+            }
+            parser.read_next_token();
+            auto true_block = parse_block(parser);
+            if (parser.next_token.type != TokenType::CLOSE_CURLY) {
+                throw std::runtime_error("Expected }");
+            }
+            parser.read_next_token();
+            if (parser.next_token.type != TokenType::KEYWORD_ELSE) {
+                // TODO: make if node
+                return nullptr;
+            }
+            parser.read_next_token();
+            if (parser.next_token.type != TokenType::OPEN_CURLY) {
+                throw std::runtime_error("Expected {");
+            }
+            parser.read_next_token();
+            auto false_block = parse_block(parser);
+            if (parser.next_token.type != TokenType::CLOSE_CURLY) {
+                throw std::runtime_error("Expected }");
+            }
+            parser.read_next_token();
+            // TODO: make if-else node
+            return nullptr;
         }
         case TokenType::IDENTIFIER:
         {
             auto name = parser.next_token.value;
-            parser.advance();
-            if (parser.next_token.type != TokenType::ASSIGNMENT) {
+            parser.read_next_token();
+            if (parser.next_token.type != TokenType::EQUALS) {
                 throw std::runtime_error("Expected assignment");
             }
-            parser.advance();
+            parser.read_next_token();
             auto result = parse_expression(parser, 255);
             parser.scopes.back()[name] = result;
+            return result;
+        }
+        case TokenType::OPEN_CURLY:
+        {
+            parser.read_next_token();
+            auto result = parse_block(parser);
+            if (parser.next_token.type != TokenType::CLOSE_CURLY) {
+                throw std::runtime_error("Expected }");
+            }
+            parser.read_next_token();
             return result;
         }
         default:
@@ -303,10 +340,12 @@ namespace {
 
     std::shared_ptr<grlang::node::Node> parse_block(Parser& parser) {
         std::shared_ptr<grlang::node::Node> result;
-        while (parser.next_token.type != TokenType::END_OF_INPUT)
+        parser.new_scope();
+        while (parser.next_token.type != TokenType::CLOSE_CURLY && parser.next_token.type != TokenType::END_OF_INPUT)
         {
             result = parse_statement(parser);
         }
+        parser.end_scope();
         return result;
     }
 }
