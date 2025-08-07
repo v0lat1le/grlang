@@ -1,5 +1,6 @@
 #include <stdexcept>
 #include <cstdint>
+#include <cassert>
 #include <unordered_map>
 
 #include "grlang/parse.h"
@@ -47,18 +48,10 @@ namespace {
 
     enum class TokenType : std::uint64_t {
         IDENTIFIER = 0ull,
-        KEYWORD    = 1ull << 61,
-        TYPE       = 2ull << 61,
-        LITERAL    = 3ull << 61,
-        OPERATOR   = 4ull << 61,
-        STRUCTURE  = 5ull << 61,
+        LITERAL    = 1ull << 61,
+        OPERATOR   = 2ull << 61,
+        STRUCTURE  = 3ull << 61,
         SPECIAL    = 7ull << 61,
-
-        KEYWORD_RETURN = KEYWORD | 1,
-        KEYWORD_IF     = KEYWORD | 2,
-        KEYWORD_ELSE   = KEYWORD | 3,
-
-        TYPE_INT = TYPE | 1,   
 
         LITERAL_INT = LITERAL | 1,
 
@@ -91,19 +84,6 @@ namespace {
         std::string_view value;
     };
 
-    Token check_keyword(Token token) {
-        if (token.value == "return") {
-            return {TokenType::KEYWORD_RETURN, token.value};
-        } else if (token.value == "if") {
-            return {TokenType::KEYWORD_IF, token.value};
-        } else if (token.value == "else") {
-            return {TokenType::KEYWORD_ELSE, token.value};
-        } else if (token.value == "int") {
-            return {TokenType::TYPE_INT, token.value};
-        }
-        return token;
-    }
-
     Token read_token(std::string_view& code) {
         skip_whitespace(code);
         if (code.empty()) {
@@ -113,136 +93,149 @@ namespace {
             return {TokenType::LITERAL_INT, read_number(code)};
         }
         if (isalpha(code[0])) {
-            return check_keyword({TokenType::IDENTIFIER, read_identifier(code)});
+            return {TokenType::IDENTIFIER, read_identifier(code)};
         }
         switch (code[0]) {
-        case '+': return {TokenType::OPERATOR_PLUS, read_chars(code, 1)};
-        case '-': return {TokenType::OPERATOR_MINUS, read_chars(code, 1)};
-        case '*': return {TokenType::OPERATOR_STAR, read_chars(code, 1)};
-        case '/': return {TokenType::OPERATOR_SLASH, read_chars(code, 1)};
-        case '{': return {TokenType::OPEN_CURLY, read_chars(code, 1)};
-        case '}': return {TokenType::CLOSE_CURLY, read_chars(code, 1)};
-        case '(': return {TokenType::OPEN_ROUND, read_chars(code, 1)};
-        case ')': return {TokenType::CLOSE_ROUND, read_chars(code, 1)};
-        case ':': return {TokenType::COLON, read_chars(code, 1)};
-        }
-
-        if (code.size() < 2) {
-            return {TokenType::END_OF_INPUT, code};
-        }
-        switch (code[0]) {
+        case '+':
+            return {TokenType::OPERATOR_PLUS, read_chars(code, 1)};
+        case '-':
+            return {TokenType::OPERATOR_MINUS, read_chars(code, 1)};
+        case '*':
+            return {TokenType::OPERATOR_STAR, read_chars(code, 1)};
+        case '/':
+            return {TokenType::OPERATOR_SLASH, read_chars(code, 1)};
+        case '{':
+            return {TokenType::OPEN_CURLY, read_chars(code, 1)};
+        case '}':
+            return {TokenType::CLOSE_CURLY, read_chars(code, 1)};
+        case '(':
+            return {TokenType::OPEN_ROUND, read_chars(code, 1)};
+        case ')':
+            return {TokenType::CLOSE_ROUND, read_chars(code, 1)};
+        case ':':
+            return {TokenType::COLON, read_chars(code, 1)};
         case '=':
-            return code[1] == '=' ? Token{TokenType::OPERATOR_EQ, read_chars(code, 2)} : Token{TokenType::EQUALS, read_chars(code, 1)};
+            return code.size() > 1 && code[1] == '=' ?
+                Token{TokenType::OPERATOR_EQ, read_chars(code, 2)} :
+                Token{TokenType::EQUALS, read_chars(code, 1)};
         case '!':
-            return code[1] == '=' ? Token{TokenType::OPERATOR_NEQ, read_chars(code, 2)} : Token{TokenType::INVALID_INPUT, code};
+            return code.size() > 1 && code[1] == '=' ?
+                Token{TokenType::OPERATOR_NEQ, read_chars(code, 2)} :
+                Token{TokenType::INVALID_INPUT, code};
         case '>':
-            return code[1] == '=' ? Token{TokenType::OPERATOR_GEQ, read_chars(code, 2)} : Token{TokenType::OPERATOR_GT, read_chars(code, 1)};
+            return code.size() > 1 && code[1] == '=' ?
+                Token{TokenType::OPERATOR_GEQ, read_chars(code, 2)} :
+                Token{TokenType::OPERATOR_GT, read_chars(code, 1)};
         case '<':
-            return code[1] == '=' ? Token{TokenType::OPERATOR_LEQ, read_chars(code, 2)} : Token{TokenType::OPERATOR_LT, read_chars(code, 1)};
+            return code.size() > 1 && code[1] == '=' ?
+                Token{TokenType::OPERATOR_LEQ, read_chars(code, 2)} :
+                Token{TokenType::OPERATOR_LT, read_chars(code, 1)};
         }
         return {TokenType::INVALID_INPUT, code};
     }
 
+    using Scope = std::unordered_map<std::string_view, grlang::node::Node::Ptr>;
+
     struct Parser {
         std::string_view code;
         Token next_token;
-        std::vector<std::unordered_map<std::string_view, std::shared_ptr<grlang::node::Node>>> scopes;
 
         Parser(std::string_view code_) : code(code_) {
-            scopes.emplace_back(); // global scope
             read_next_token();
         }
 
         void read_next_token() {
             next_token = ::read_token(code);
         }
-
-        void new_scope() {
-            scopes.push_back(scopes.back());
-        }
-
-        void end_scope() {
-            for (auto& [key, val] : scopes.at(scopes.size()-2)){
-                val = scopes.back().at(key);
-            }
-            scopes.pop_back();
-        }
     };
 
-    grlang::node::NodeType operation_type(TokenType token) {
+    grlang::node::Node::Type operation_type(TokenType token) {
         switch (token)
         {
         case TokenType::OPERATOR_PLUS:
-            return grlang::node::NodeType::OPERATION_ADD;
+            return grlang::node::Node::Type::DATA_OP_ADD;
         case TokenType::OPERATOR_MINUS:
-            return grlang::node::NodeType::OPERATION_SUB;
+            return grlang::node::Node::Type::DATA_OP_SUB;
         case TokenType::OPERATOR_STAR:
-            return grlang::node::NodeType::OPERATION_MUL;
+            return grlang::node::Node::Type::DATA_OP_MUL;
         case TokenType::OPERATOR_SLASH:
-            return grlang::node::NodeType::OPERATION_DIV;
+            return grlang::node::Node::Type::DATA_OP_DIV;
         case TokenType::OPERATOR_LT:
-            return grlang::node::NodeType::OPERATION_LT;
+            return grlang::node::Node::Type::DATA_OP_LT;
         case TokenType::OPERATOR_GT:
-            return grlang::node::NodeType::OPERATION_GT;
+            return grlang::node::Node::Type::DATA_OP_GT;
         case TokenType::OPERATOR_LEQ:
-            return grlang::node::NodeType::OPERATION_LEQ;
+            return grlang::node::Node::Type::DATA_OP_LEQ;
         case TokenType::OPERATOR_GEQ:
-            return grlang::node::NodeType::OPERATION_GEQ;
+            return grlang::node::Node::Type::DATA_OP_GEQ;
         case TokenType::OPERATOR_EQ:
-            return grlang::node::NodeType::OPERATION_EQ;
+            return grlang::node::Node::Type::DATA_OP_EQ;
         case TokenType::OPERATOR_NEQ:
-            return grlang::node::NodeType::OPERATION_NEQ;
+            return grlang::node::Node::Type::DATA_OP_NEQ;
         default:
             throw std::runtime_error("Unsupported token type");
         }
     }
 
-    std::uint8_t operation_precedence(grlang::node::NodeType type) {
-        using grlang::node::NodeType;
+    std::uint8_t operation_precedence(grlang::node::Node::Type type) {
+        using grlang::node::Node;
 
         switch (type)
         {
-        case NodeType::OPERATION_NEG:
+        case Node::Type::DATA_OP_NEG:
             return 2;
-        case NodeType::OPERATION_MUL:
-        case NodeType::OPERATION_DIV:
+        case Node::Type::DATA_OP_MUL:
+        case Node::Type::DATA_OP_DIV:
             return 3;
-        case NodeType::OPERATION_ADD:
-        case NodeType::OPERATION_SUB:
+        case Node::Type::DATA_OP_ADD:
+        case Node::Type::DATA_OP_SUB:
             return 4;
-        case NodeType::OPERATION_GT:
-        case NodeType::OPERATION_GEQ:
-        case NodeType::OPERATION_LT:
-        case NodeType::OPERATION_LEQ:
+        case Node::Type::DATA_OP_GT:
+        case Node::Type::DATA_OP_GEQ:
+        case Node::Type::DATA_OP_LT:
+        case Node::Type::DATA_OP_LEQ:
             return 6;
-        case NodeType::OPERATION_EQ:
-        case NodeType::OPERATION_NEQ:
+        case Node::Type::DATA_OP_EQ:
+        case Node::Type::DATA_OP_NEQ:
             return 7;
         default:
             return 255;
         }
     }
 
-    std::shared_ptr<grlang::node::Node> parse_expression(Parser& parser, std::uint8_t prev_precedence) {
-        std::shared_ptr<grlang::node::Node> result;
+    grlang::node::Node::Ptr make_node(grlang::node::Node::Type type) {
+        return std::make_shared<grlang::node::Node>(type);
+    }
+
+    grlang::node::Node::Ptr make_node(grlang::node::Node::Type type, std::initializer_list<grlang::node::Node::Ptr> inputs) {
+        return std::make_shared<grlang::node::Node>(type, inputs);
+    }
+
+    grlang::node::Node::Ptr make_node(grlang::node::Node::Type type, int value, std::initializer_list<grlang::node::Node::Ptr> inputs) {
+        auto result = make_node(type, inputs);
+        result->value_int = value;
+        return result;
+    }
+
+    grlang::node::Node::Ptr parse_expression(Parser& parser, const Scope& scope, std::uint8_t prev_precedence) {
+        grlang::node::Node::Ptr result;
         switch (parser.next_token.type) {
             case TokenType::OPERATOR_MINUS:
             {
                 parser.read_next_token();
-                result = std::make_shared<grlang::node::Node>(
-                    grlang::node::NodeType::OPERATION_NEG,
-                    std::vector<std::shared_ptr<grlang::node::Node>>{parse_expression(parser, operation_precedence(grlang::node::NodeType::OPERATION_NEG))});
+                result = make_node(grlang::node::Node::Type::DATA_OP_NEG,
+                    {parse_expression(parser, scope, operation_precedence(grlang::node::Node::Type::DATA_OP_NEG))});
             }
             break;
             case TokenType::IDENTIFIER:
             {
-                result = parser.scopes.back().at(parser.next_token.value);
+                result = scope.at(parser.next_token.value);
                 parser.read_next_token();
             }
             break;
             case TokenType::LITERAL_INT:
             {
-                result = std::make_shared<grlang::node::Node>(grlang::node::NodeType::CONSTANT_INT);
+                result = make_node(grlang::node::Node::Type::DATA_TERM);
                 result->value_int = svtoi(parser.next_token.value);
                 parser.read_next_token();
             }
@@ -261,96 +254,126 @@ namespace {
                 return result;
             }
             parser.read_next_token();
-            result = std::make_shared<grlang::node::Node>(
-                node_type,
-                std::vector<std::shared_ptr<grlang::node::Node>>{result, parse_expression(parser, precedence)});
+            result = make_node(node_type, {result, parse_expression(parser, scope, precedence)});
         }
     }
 
-    std::shared_ptr<grlang::node::Node> parse_block(Parser& parser);
+    void merge_scope(const Scope& src, Scope& dst) {
+        for (auto& [key, val] : dst) {
+            val = src.at(key);
+        }
+    }
 
-    std::shared_ptr<grlang::node::Node> parse_statement(Parser& parser) {
+    void merge_scopes(const Scope& src1, const Scope& src2, Scope& dst, const grlang::node::Node::Ptr& region) {
+        for (auto& [key, val] : dst) {
+            // TODO: make into a value comparison
+            if (src1.at(key) != src2.at(key)) {
+                val = make_node(grlang::node::Node::Type::DATA_PHI, {region, src1.at(key), src2.at(key)});
+            } else {
+                val = src1.at(key);
+            }
+        }
+    }
+
+    void parse_statement(Parser& parser, Scope& scope, const grlang::node::Node::Ptr& stop);
+
+    void parse_ifelse(Parser& parser, Scope& scope, const grlang::node::Node::Ptr& stop)
+    {
+        assert(parser.next_token.value == "if");
+        parser.read_next_token();
+        auto condition = parse_expression(parser, scope, 255);
+        auto ifelse = make_node(grlang::node::Node::Type::CONTROL_IFELSE, {scope.at("$ctl"), condition});
+        
+        auto true_proj = make_node(grlang::node::Node::Type::CONTROL_PROJECT, 0, {ifelse});
+        auto true_scope = scope;
+        true_scope["$ctl"] = true_proj;
+        parse_statement(parser, true_scope, stop);
+        
+        auto false_proj = make_node(grlang::node::Node::Type::CONTROL_PROJECT, 1, {ifelse});
+        auto false_scope = scope;
+        false_scope["$ctl"] = false_proj;
+        if (parser.next_token.value == "else")
+        {
+            parser.read_next_token();
+            parse_statement(parser, false_scope, stop);
+        }
+        
+        auto region = make_node(grlang::node::Node::Type::CONTROL_REGION, {nullptr, true_proj, false_proj});
+        merge_scopes(true_scope, false_scope, scope, region);
+        scope["$ctl"] = region;
+        return;
+    }
+
+    void parse_block(Parser& parser, Scope& scope, const grlang::node::Node::Ptr& stop) {
+        while (parser.next_token.type != TokenType::CLOSE_CURLY && parser.next_token.type != TokenType::END_OF_INPUT)
+        {
+            parse_statement(parser, scope, stop);
+        }
+    }
+
+    void parse_statement(Parser& parser, Scope& scope, const grlang::node::Node::Ptr& stop)
+    {
         switch (parser.next_token.type)
         {
         case TokenType::END_OF_INPUT:
-            return nullptr;
-        case TokenType::KEYWORD_RETURN:
+            return;
+        case TokenType::OPEN_CURLY:
         {
             parser.read_next_token();
-            auto result = std::make_shared<grlang::node::Node>(grlang::node::NodeType::CONTROL_RETURN);
-            result->inputs.push_back(parse_expression(parser, 255));
-            return result;
-        }
-        case TokenType::KEYWORD_IF:
-        {
-            parser.read_next_token();
-            auto condition = parse_expression(parser, 255);
-            if (parser.next_token.type != TokenType::OPEN_CURLY) {
-                throw std::runtime_error("Expected {");
-            }
-            parser.read_next_token();
-            auto true_block = parse_block(parser);
+            auto new_scope = scope;
+            parse_block(parser, new_scope, stop);
             if (parser.next_token.type != TokenType::CLOSE_CURLY) {
                 throw std::runtime_error("Expected }");
             }
+            merge_scope(new_scope, scope);
             parser.read_next_token();
-            if (parser.next_token.type != TokenType::KEYWORD_ELSE) {
-                // TODO: make if node
-                return nullptr;
-            }
-            parser.read_next_token();
-            if (parser.next_token.type != TokenType::OPEN_CURLY) {
-                throw std::runtime_error("Expected {");
-            }
-            parser.read_next_token();
-            auto false_block = parse_block(parser);
-            if (parser.next_token.type != TokenType::CLOSE_CURLY) {
-                throw std::runtime_error("Expected }");
-            }
-            parser.read_next_token();
-            // TODO: make if-else node
-            return nullptr;
+            return;
         }
         case TokenType::IDENTIFIER:
         {
+            if (parser.next_token.value == "return") {
+                parser.read_next_token();
+                auto result = make_node(grlang::node::Node::Type::CONTROL_RETURN, {scope.at("$ctl"), parse_expression(parser, scope, 255)});
+                stop->inputs.push_back(result);
+                return;
+            }
+            if (parser.next_token.value == "if") {
+                parse_ifelse(parser, scope, stop);
+                return;
+            }
+
             auto name = parser.next_token.value;
+            // TODO: check name is not a keyword
             parser.read_next_token();
+            if (parser.next_token.type == TokenType::COLON) {
+                if (scope.contains(name)) {
+                    throw std::runtime_error("already defined");
+                }
+                parser.read_next_token();
+                // TODO: read type
+                parser.read_next_token();
+            } else if (!scope.contains(name)) {
+                throw std::runtime_error("not defined");
+            }
             if (parser.next_token.type != TokenType::EQUALS) {
                 throw std::runtime_error("Expected assignment");
             }
             parser.read_next_token();
-            auto result = parse_expression(parser, 255);
-            parser.scopes.back()[name] = result;
-            return result;
-        }
-        case TokenType::OPEN_CURLY:
-        {
-            parser.read_next_token();
-            auto result = parse_block(parser);
-            if (parser.next_token.type != TokenType::CLOSE_CURLY) {
-                throw std::runtime_error("Expected }");
-            }
-            parser.read_next_token();
-            return result;
+            scope[name] = parse_expression(parser, scope, 255);
+            return;
         }
         default:
             throw std::runtime_error("Unexpected token");
         }
     }
-
-    std::shared_ptr<grlang::node::Node> parse_block(Parser& parser) {
-        std::shared_ptr<grlang::node::Node> result;
-        parser.new_scope();
-        while (parser.next_token.type != TokenType::CLOSE_CURLY && parser.next_token.type != TokenType::END_OF_INPUT)
-        {
-            result = parse_statement(parser);
-        }
-        parser.end_scope();
-        return result;
-    }
 }
 
-std::shared_ptr<grlang::node::Node> grlang::parse::parse(std::string_view code) {
+grlang::node::Node::Ptr grlang::parse::parse(std::string_view code) {
     Parser parser(code);
-    return parse_block(parser);
+    Scope scope;
+    auto start = make_node(grlang::node::Node::Type::CONTROL_START);
+    scope["$ctl"] = start;
+    auto stop = make_node(grlang::node::Node::Type::CONTROL_STOP);
+    parse_block(parser, scope, stop);
+    return stop;
 }

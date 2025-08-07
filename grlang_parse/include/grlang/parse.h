@@ -7,5 +7,5 @@
 
 
 namespace grlang::parse {
-    std::shared_ptr<grlang::node::Node> parse(std::string_view data);
+    grlang::node::Node::Ptr parse(std::string_view data);
 }
