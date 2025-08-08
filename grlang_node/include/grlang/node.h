@@ -16,6 +16,7 @@ namespace grlang {
                 CONTROL_REGION,
                 CONTROL_IFELSE,
                 CONTROL_PROJECT,
+                CONTROL_DEAD,
 
                 DATA_TERM,
                 DATA_PROJECT,

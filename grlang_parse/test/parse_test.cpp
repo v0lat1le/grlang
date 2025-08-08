@@ -48,6 +48,18 @@ void test_arithmetic() {
     assert(mul3->inputs.at(1)->value_int == 6);
 }
 
+void test_arithmetic_peep() {
+    auto node = grlang::parse::parse("return 2*-3*4+36/6");
+    assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
+    assert(node->inputs.size() == 1);
+
+    node = node->inputs.at(0);
+    assert(node->type == grlang::node::Node::Type::CONTROL_RETURN);
+    assert(node->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_START);
+    assert(node->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM);
+    assert(node->inputs.at(1)->value_int == -18);
+}
+
 void test_declarations() {
     auto node = grlang::parse::parse("a:int = 13 b:int = 7 return a-b");
     assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
@@ -62,6 +74,18 @@ void test_declarations() {
     assert(sub->inputs.at(0)->value_int == 13);
     assert(sub->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM);
     assert(sub->inputs.at(1)->value_int == 7);
+}
+
+void test_declarations_peep() {
+    auto node = grlang::parse::parse("a:int = 13 b:int = 7 return a-b");
+    assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
+    assert(node->inputs.size() == 1);
+
+    node = node->inputs.at(0);
+    assert(node->type == grlang::node::Node::Type::CONTROL_RETURN);
+    assert(node->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_START);
+    assert(node->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM);
+    assert(node->inputs.at(1)->value_int == 6);
 }
 
 void test_scopes() {
@@ -105,11 +129,23 @@ void test_if_else() {
     assert(phi->inputs.at(2)->type == grlang::node::Node::Type::DATA_OP_MUL);
 }
 
+void test_if_else_peep() {
+    auto node = grlang::parse::parse("a:int = 13 if a<0 a = -a else a=2*a return a");
+    assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
+    assert(node->inputs.size() == 1);
+
+    node = node->inputs.at(0);
+    assert(node->type == grlang::node::Node::Type::CONTROL_RETURN);
+    assert(node->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_START);
+    assert(node->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM);
+    assert(node->inputs.at(1)->value_int == 26);
+}
+
 int main() {
     test_return();
-    test_arithmetic();
-    test_declarations();
+    test_arithmetic_peep();
+    test_declarations_peep();
     test_scopes();
-    test_if_else();
+    test_if_else_peep();
     return 0;
 }
