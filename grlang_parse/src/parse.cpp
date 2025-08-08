@@ -15,7 +15,7 @@ namespace {
         return n;
     }
 
-    std::string_view read_chars(std::string_view& code, int n) {
+    std::string_view read_chars(std::string_view& code, std::size_t n) {
         auto result = code.substr(0, n);
         code.remove_prefix(n);
         return result;
@@ -47,11 +47,11 @@ namespace {
     }
 
     enum class TokenType : std::uint64_t {
-        IDENTIFIER = 0ull,
-        LITERAL    = 1ull << 61,
-        OPERATOR   = 2ull << 61,
-        STRUCTURE  = 3ull << 61,
-        SPECIAL    = 7ull << 61,
+        IDENTIFIER = UINT64_C(0),
+        LITERAL    = UINT64_C(1) << 61,
+        OPERATOR   = UINT64_C(2) << 61,
+        STRUCTURE  = UINT64_C(3) << 61,
+        SPECIAL    = UINT64_C(7) << 61,
 
         LITERAL_INT = LITERAL | 1,
 
@@ -205,25 +205,25 @@ namespace {
         switch (type)
         {
         case grlang::node::Node::Type::DATA_OP_MUL:
-            return [](int a, int b) { return a*b; };
+            return [](int a, int b)->int { return a*b; };
         case grlang::node::Node::Type::DATA_OP_DIV:
-            return [](int a, int b) { return a/b; };
+            return [](int a, int b)->int { return a/b; };
         case grlang::node::Node::Type::DATA_OP_ADD:
-            return [](int a, int b) { return a+b; };
+            return [](int a, int b)->int { return a+b; };
         case grlang::node::Node::Type::DATA_OP_SUB:
-            return [](int a, int b) { return a-b; };
+            return [](int a, int b)->int { return a-b; };
         case grlang::node::Node::Type::DATA_OP_GT:
-            return [](int a, int b) { return a>b ? 1 : 0; };
+            return [](int a, int b)->int { return a>b ? 1 : 0; };
         case grlang::node::Node::Type::DATA_OP_GEQ:
-            return [](int a, int b) { return a>=b ? 1 : 0; };
+            return [](int a, int b)->int { return a>=b ? 1 : 0; };
         case grlang::node::Node::Type::DATA_OP_LT:
-            return [](int a, int b) { return a<b ? 1 : 0; };
+            return [](int a, int b)->int { return a<b ? 1 : 0; };
         case grlang::node::Node::Type::DATA_OP_LEQ:
-            return [](int a, int b) { return a<=b ? 1 : 0; };
+            return [](int a, int b)->int { return a<=b ? 1 : 0; };
         case grlang::node::Node::Type::DATA_OP_EQ:
-            return [](int a, int b) { return a==b ? 1 : 0; };
+            return [](int a, int b)->int { return a==b ? 1 : 0; };
         case grlang::node::Node::Type::DATA_OP_NEQ:
-            return [](int a, int b) { return a!=b ? 1 : 0; };
+            return [](int a, int b)->int { return a!=b ? 1 : 0; };
         default:
             throw std::runtime_error("bad op");
         }
@@ -323,7 +323,7 @@ namespace {
                 throw std::runtime_error("Expected operand!");
         }
 
-        while ((static_cast<std::uint64_t>(parser.next_token.type) & (7ull << 61)) == static_cast<std::uint64_t>(TokenType::OPERATOR)) {
+        while ((static_cast<std::uint64_t>(parser.next_token.type) & (UINT64_C(7) << 61)) == static_cast<std::uint64_t>(TokenType::OPERATOR)) {
             auto node_type = operation_type(parser.next_token.type);
             auto precedence = operation_precedence(node_type);
             if (prev_precedence < precedence) {
@@ -425,7 +425,7 @@ namespace {
                     throw std::runtime_error("already defined");
                 }
                 parser.read_next_token();
-                // TODO: read type
+                assert(parser.next_token.value == "int");   // TODO: read type
                 parser.read_next_token();
             } else if (!scope.contains(name)) {
                 throw std::runtime_error("not defined");

@@ -39,7 +39,7 @@ namespace grlang {
             // std::vector<Ptr::weak_type> outputs;
             union
             {
-                int64_t value_int;
+                int value_int;
             };
         };
     }
