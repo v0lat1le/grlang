@@ -46,37 +46,35 @@ namespace {
         return result;
     }
 
-    enum class TokenType : std::uint64_t {
-        IDENTIFIER = UINT64_C(0),
-        LITERAL    = UINT64_C(1) << 61,
-        OPERATOR   = UINT64_C(2) << 61,
-        STRUCTURE  = UINT64_C(3) << 61,
-        SPECIAL    = UINT64_C(7) << 61,
+    enum class TokenType : std::uint8_t {
+        IDENTIFIER,
+        LITERAL_INT,
 
-        LITERAL_INT = LITERAL | 1,
+        OPERATOR_BEGIN,  // NOTE: put binary operation tags between OPERATOR_BEGIN and OPERATOR_END
+        OPERATOR_PLUS,
+        OPERATOR_MINUS,
+        OPERATOR_STAR,
+        OPERATOR_SLASH,
+        OPERATOR_GT,
+        OPERATOR_LT,
+        OPERATOR_GEQ,
+        OPERATOR_LEQ,
+        OPERATOR_EQ,
+        OPERATOR_NEQ,
+        OPERATOR_END,
+        OPERATOR_EXCLAM,
 
-        OPERATOR_PLUS  = OPERATOR | 1,
-        OPERATOR_MINUS = OPERATOR | 2,
-        OPERATOR_STAR  = OPERATOR | 3,
-        OPERATOR_SLASH = OPERATOR | 4,
-        OPERATOR_GT    = OPERATOR | 5,
-        OPERATOR_LT    = OPERATOR | 6,
-        OPERATOR_GEQ   = OPERATOR | 7,
-        OPERATOR_LEQ   = OPERATOR | 8,
-        OPERATOR_EQ    = OPERATOR | 9,
-        OPERATOR_NEQ   = OPERATOR | 10,
+        EQUALS,
+        COLON,
+        SEMICOLON,
+        ARROW,
+        OPEN_CURLY,
+        CLOSE_CURLY,
+        OPEN_ROUND,
+        CLOSE_ROUND,
 
-        EQUALS      = STRUCTURE | 1,
-        COLON       = STRUCTURE | 2,
-        SEMICOLON   = STRUCTURE | 3,
-        ARROW       = STRUCTURE | 4,
-        OPEN_CURLY  = STRUCTURE | 5,
-        CLOSE_CURLY = STRUCTURE | 6,
-        OPEN_ROUND  = STRUCTURE | 7,
-        CLOSE_ROUND = STRUCTURE | 8,
-
-        END_OF_INPUT  = SPECIAL | 1,
-        INVALID_INPUT = SPECIAL | 2,
+        END_OF_INPUT,
+        INVALID_INPUT,
     };
 
     struct Token {
@@ -121,7 +119,7 @@ namespace {
         case '!':
             return code.size() > 1 && code[1] == '=' ?
                 Token{TokenType::OPERATOR_NEQ, read_chars(code, 2)} :
-                Token{TokenType::INVALID_INPUT, code};
+                Token{TokenType::OPERATOR_EXCLAM, read_chars(code, 1) };
         case '>':
             return code.size() > 1 && code[1] == '=' ?
                 Token{TokenType::OPERATOR_GEQ, read_chars(code, 2)} :
@@ -181,6 +179,7 @@ namespace {
         switch (type)
         {
         case grlang::node::Node::Type::DATA_OP_NEG:
+        case grlang::node::Node::Type::DATA_OP_NOT:
             return 2;
         case grlang::node::Node::Type::DATA_OP_MUL:
         case grlang::node::Node::Type::DATA_OP_DIV:
@@ -242,6 +241,7 @@ namespace {
     }
 
     grlang::node::Node::Ptr make_value_node(int value) {
+        // TODO: cache constants like 0 and 1
         return std::make_shared<grlang::node::ValueNode>(grlang::node::Node(grlang::node::Node::Type::DATA_TERM, 0, {}), grlang::node::Value(value));
     }
 
@@ -250,15 +250,33 @@ namespace {
     }
 
     grlang::node::Node::Ptr peephole(grlang::node::Node::Ptr node) {
-        if (node->type >= grlang::node::Node::Type::DATA_OP_ADD && node->type <= grlang::node::Node::Type::DATA_OP_NEQ
-                && is_const(node->inputs.at(0)) && is_const(node->inputs.at(1))) {
-            return make_value_node(op_func(node->type)(get_value_int(node->inputs.at(0)), get_value_int(node->inputs.at(1))));
+        if (node->type > grlang::node::Node::Type::DATA_OP_BEGIN && node->type < grlang::node::Node::Type::DATA_OP_END
+                && is_const(*node->inputs.at(0)) && is_const(*node->inputs.at(1))) {
+            return make_value_node(op_func(node->type)(get_value_int(*node->inputs.at(0)), get_value_int(*node->inputs.at(1))));
         }
         switch (node->type)
         {
         case grlang::node::Node::Type::DATA_OP_NEG:
-            if (is_const(node->inputs.at(0))) {
-                return make_value_node(-get_value_int(node->inputs.at(0)));
+            if (is_const(*node->inputs.at(0))) {
+                return make_value_node(-get_value_int(*node->inputs.at(0)));
+            }
+            break;
+        case grlang::node::Node::Type::DATA_OP_NOT:
+            if (is_const(*node->inputs.at(0))) {
+                return make_value_node(get_value_int(*node->inputs.at(0)) == 0 ? 1 : 0);
+            }
+            break;
+        case grlang::node::Node::Type::DATA_OP_ADD:
+            if (is_const(*node->inputs.at(0))) {
+                std::swap(node->inputs.at(0), node->inputs.at(1));
+            }
+            if (is_const(*node->inputs.at(1))) {
+                if (get_value_int(*node->inputs.at(1))==0) {
+                    return node->inputs.at(0);
+                }
+                if (node->inputs.at(0)->type == grlang::node::Node::Type::DATA_OP_ADD && is_const(*node->inputs.at(0)->inputs.at(1))) {
+                    return make_node(grlang::node::Node::Type::DATA_OP_ADD, { node->inputs.at(0)->inputs.at(0), make_value_node(get_value_int(*node->inputs.at(0)->inputs.at(1)) + get_value_int(*node->inputs.at(1)))});
+                }
             }
             break;
         case grlang::node::Node::Type::DATA_PHI:
@@ -269,11 +287,9 @@ namespace {
                 return node->inputs.at(1);
             }
             break;
-        case grlang::node::Node::Type::CONTROL_IFELSE:
-            break;
         case grlang::node::Node::Type::CONTROL_PROJECT:
-            if (node->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_IFELSE && is_const(node->inputs.at(0)->inputs.at(1))) {
-                if ((node->value==0) == (get_value_int(node->inputs.at(0)->inputs.at(1))==1)) {
+            if (node->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_IFELSE && is_const(*node->inputs.at(0)->inputs.at(1))) {
+                if ((node->value==0) == (get_value_int(*node->inputs.at(0)->inputs.at(1))==1)) {
                     return node->inputs.at(0)->inputs.at(0);
                 } else {
                     return make_node(grlang::node::Node::Type::CONTROL_DEAD);
@@ -311,6 +327,12 @@ namespace {
                 result = make_peep_node(grlang::node::Node::Type::DATA_OP_NEG, {parse_expression(parser, scope, precedence)});
                 break;
             }
+            case TokenType::OPERATOR_EXCLAM: {
+                parser.read_next_token();
+                auto precedence = operation_precedence(grlang::node::Node::Type::DATA_OP_NOT);
+                result = make_peep_node(grlang::node::Node::Type::DATA_OP_NOT, { parse_expression(parser, scope, precedence) });
+                break;
+            }
             case TokenType::IDENTIFIER:
                 result = scope.at(parser.next_token.value);
                 parser.read_next_token();
@@ -323,7 +345,7 @@ namespace {
                 throw std::runtime_error("Expected operand!");
         }
 
-        while ((static_cast<std::uint64_t>(parser.next_token.type) & (UINT64_C(7) << 61)) == static_cast<std::uint64_t>(TokenType::OPERATOR)) {
+        while (parser.next_token.type > TokenType::OPERATOR_BEGIN && parser.next_token.type < TokenType::OPERATOR_END) {
             auto node_type = operation_type(parser.next_token.type);
             auto precedence = operation_precedence(node_type);
             if (prev_precedence < precedence) {

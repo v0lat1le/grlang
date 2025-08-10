@@ -23,6 +23,8 @@ namespace grlang {
                 DATA_PHI,
 
                 DATA_OP_NEG,
+                DATA_OP_NOT,
+                DATA_OP_BEGIN,  // NOTE: put binary operation tags between DATA_OP_BEGIN and DATA_OP_END
                 DATA_OP_ADD,
                 DATA_OP_SUB,
                 DATA_OP_MUL,
@@ -33,6 +35,7 @@ namespace grlang {
                 DATA_OP_GEQ,
                 DATA_OP_EQ,
                 DATA_OP_NEQ,
+                DATA_OP_END,
             };
             Type type;
             uint8_t pad1;
@@ -80,7 +83,7 @@ namespace grlang {
         };
 
 
-        bool is_const(const Node::Ptr& node);
-        int get_value_int(const Node::Ptr& node);
+        bool is_const(const Node& node);
+        int get_value_int(const Node& node);
     }
 }
