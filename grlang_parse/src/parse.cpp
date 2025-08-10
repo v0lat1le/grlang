@@ -229,36 +229,36 @@ namespace {
         }
     }
 
-    grlang::node::Node::Ptr make_node(grlang::node::Node::Type type, int value, std::initializer_list<grlang::node::Node::Ptr> inputs) {
-        auto result = std::make_shared<grlang::node::Node>(type, inputs);
-        result->value_int = value;
-        return result;
-    }
+    grlang::node::Node::Ptr make_node(grlang::node::Node::Type type, std::uint8_t value, std::initializer_list<grlang::node::Node::Ptr> inputs) {
+        return std::make_shared<grlang::node::Node>(type, value, inputs);
+    };
 
     grlang::node::Node::Ptr make_node(grlang::node::Node::Type type, std::initializer_list<grlang::node::Node::Ptr> inputs) {
-        return std::make_shared<grlang::node::Node>(type, inputs);
-    }
-
-    grlang::node::Node::Ptr make_node(grlang::node::Node::Type type, int value) {
-        return make_node(type, value, {});
+        return std::make_shared<grlang::node::Node>(type, std::uint8_t(0), inputs);
     }
 
     grlang::node::Node::Ptr make_node(grlang::node::Node::Type type) {
-        return std::make_shared<grlang::node::Node>(type);
+        return make_node(type, 0, {});
+    }
+
+    grlang::node::Node::Ptr make_value_node(int value) {
+        return std::make_shared<grlang::node::ValueNode>(grlang::node::Node(grlang::node::Node::Type::DATA_TERM, 0, {}), grlang::node::Value(value));
+    }
+
+    grlang::node::Node::Ptr make_value_node(grlang::node::Value::Type type) {
+        return std::make_shared<grlang::node::ValueNode>(grlang::node::Node(grlang::node::Node::Type::DATA_TERM, 0, {}), grlang::node::Value(type));
     }
 
     grlang::node::Node::Ptr peephole(grlang::node::Node::Ptr node) {
-        if (node->type >= grlang::node::Node::Type::DATA_OP_ADD
-                && node->type <= grlang::node::Node::Type::DATA_OP_NEQ
-                && node->inputs.at(0)->type == grlang::node::Node::Type::DATA_TERM
-                && node->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM) {
-            return make_node(grlang::node::Node::Type::DATA_TERM, op_func(node->type)(node->inputs.at(0)->value_int, node->inputs.at(1)->value_int));
+        if (node->type >= grlang::node::Node::Type::DATA_OP_ADD && node->type <= grlang::node::Node::Type::DATA_OP_NEQ
+                && is_const(node->inputs.at(0)) && is_const(node->inputs.at(1))) {
+            return make_value_node(op_func(node->type)(get_value_int(node->inputs.at(0)), get_value_int(node->inputs.at(1))));
         }
         switch (node->type)
         {
         case grlang::node::Node::Type::DATA_OP_NEG:
-            if (node->inputs.at(0)->type == grlang::node::Node::Type::DATA_TERM) {
-                return make_node(grlang::node::Node::Type::DATA_TERM, -node->inputs.at(0)->value_int);
+            if (is_const(node->inputs.at(0))) {
+                return make_value_node(-get_value_int(node->inputs.at(0)));
             }
             break;
         case grlang::node::Node::Type::DATA_PHI:
@@ -272,8 +272,8 @@ namespace {
         case grlang::node::Node::Type::CONTROL_IFELSE:
             break;
         case grlang::node::Node::Type::CONTROL_PROJECT:
-            if (node->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_IFELSE && node->inputs.at(0)->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM) {
-                if ((node->inputs.at(0)->inputs.at(1)->value_int==1) == (node->value_int==0)) {
+            if (node->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_IFELSE && is_const(node->inputs.at(0)->inputs.at(1))) {
+                if ((node->value==0) == (get_value_int(node->inputs.at(0)->inputs.at(1))==1)) {
                     return node->inputs.at(0)->inputs.at(0);
                 } else {
                     return make_node(grlang::node::Node::Type::CONTROL_DEAD);
@@ -298,7 +298,7 @@ namespace {
         return peephole(make_node(type, inputs));
     }
 
-    grlang::node::Node::Ptr make_peep_node(grlang::node::Node::Type type, int value, std::initializer_list<grlang::node::Node::Ptr> inputs) {
+    grlang::node::Node::Ptr make_peep_node(grlang::node::Node::Type type, std::uint8_t value, std::initializer_list<grlang::node::Node::Ptr> inputs) {
         return peephole(make_node(type, value, inputs));
     }
 
@@ -316,7 +316,7 @@ namespace {
                 parser.read_next_token();
                 break;
             case TokenType::LITERAL_INT:
-                result = make_node(grlang::node::Node::Type::DATA_TERM, svtoi(parser.next_token.value));
+                result = make_value_node(svtoi(parser.next_token.value));
                 parser.read_next_token();
                 break;
             default:
@@ -448,6 +448,7 @@ grlang::node::Node::Ptr grlang::parse::parse(std::string_view code) {
     Scope scope;
     auto start = make_node(grlang::node::Node::Type::CONTROL_START);
     scope["$ctl"] = start;
+    scope["arg"] = make_value_node(grlang::node::Value::Type::INTEGER);
     auto stop = make_node(grlang::node::Node::Type::CONTROL_STOP);
     parse_block(parser, scope, stop);
     return stop;

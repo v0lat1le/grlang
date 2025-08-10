@@ -9,7 +9,7 @@ namespace grlang {
     namespace node {
         struct Node {
             using Ptr = std::shared_ptr<Node>;
-            enum class Type : std::uint64_t {
+            enum class Type : std::uint8_t {
                 CONTROL_START,
                 CONTROL_STOP,
                 CONTROL_RETURN,
@@ -35,12 +35,52 @@ namespace grlang {
                 DATA_OP_NEQ,
             };
             Type type;
+            uint8_t pad1;
+            uint8_t pad2;
+            uint8_t value;
             std::vector<Ptr> inputs;
             // std::vector<Ptr::weak_type> outputs;
+
+            Node(Type type_, uint8_t value_, std::initializer_list<Ptr> inputs_) : type(type_), pad1(0), pad2(0), value(value_), inputs(inputs_) {}
+        };
+
+        struct Value {
+            enum class Class : std::uint8_t {
+                TOP_TYPE,
+                TOP_CONST,
+                CONSTANT,
+                VARIABLE,
+                BOT_TYPE,
+            };
+            enum class Type : std::uint16_t {
+                UNKNOWN,
+                INTEGER,
+                TUPLE,
+            };
+            Class clazz = Class::TOP_TYPE;
+            Type type = Type::UNKNOWN;
             union
             {
-                int value_int;
+                int integer;
+                //std::vector<Value> tuple;
             };
+
+            Value() {}
+            Value(int v) : clazz(Class::CONSTANT), type(Type::INTEGER), integer(v) {}
+            Value(Type t) : clazz(Class::VARIABLE), type(t), integer(0) {}
+            ~Value() {
+                if (type == Type::TUPLE) {
+                    //tuple.~vector();
+                }
+            }
         };
+
+        struct ValueNode : Node {
+            Value value;
+        };
+
+
+        bool is_const(const Node::Ptr& node);
+        int get_value_int(const Node::Ptr& node);
     }
 }
