@@ -38,13 +38,12 @@ namespace grlang {
                 DATA_OP_END,
             };
             Type type;
-            uint8_t pad1;
-            uint8_t pad2;
             uint8_t value;
+            uint16_t depth;
             std::vector<Ptr> inputs;
             // std::vector<Ptr::weak_type> outputs;
 
-            Node(Type type_, uint8_t value_, std::initializer_list<Ptr> inputs_) : type(type_), pad1(0), pad2(0), value(value_), inputs(inputs_) {}
+            Node(Type type_, uint8_t value_, std::initializer_list<Ptr> inputs_) : type(type_), value(value_), depth(0), inputs(inputs_) {}
         };
 
         struct Value {

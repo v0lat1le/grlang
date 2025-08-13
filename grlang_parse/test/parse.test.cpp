@@ -117,6 +117,17 @@ void test_if_else_dom() {
     assert(node->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_REGION);
 }
 
+void test_while() {
+    auto node = grlang::parse::parse("a:int=0 while a < 10 { a = a+1 arg = arg+a } return arg");
+    assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
+    assert(node->inputs.size() == 1);
+
+    node = node->inputs.at(0);
+    assert(node->type == grlang::node::Node::Type::CONTROL_RETURN);
+    //assert(node->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_PROJECT);
+    //assert(node->inputs.at(0)->value == 1);
+}
+
 int main() {
     test_return();
     test_arithmetic_peep();
@@ -125,5 +136,6 @@ int main() {
     test_if_else();
     test_if_else_peep();
     test_if_else_dom();
+    test_while();
     return 0;
 }
