@@ -1,18 +1,13 @@
 {
     "version": 8,
-    "cmakeMinimumRequired": {
-        "major": 3,
-        "minor": 12,
-        "patch": 0
-    },
     "configurePresets": [
         {
             "name": "default",
             "binaryDir": "${sourceDir}/build/${presetName}",
             "cacheVariables": {
-                "ENABLE_TESTING": "ON"
-            },
-            "generator": "Unix Makefiles"
+                "GRLANG_PARSE_BUILD_TESTS": "ON",
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
         }
     ],
     "buildPresets": [
