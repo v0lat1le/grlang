@@ -3,18 +3,29 @@ on: [push, workflow_dispatch]
 
 jobs:
   job:
-    name: ${{ matrix.os }}-${{ github.workflow }}
+    name: ${{ github.workflow }}-${{ matrix.os }}-${{ matrix.compiler }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-15]
+        include:
+          - os: windows-2022
+            compiler: msvc
+            workflow: debug_msvc
+          - os: ubuntu-24.04
+            compiler: gcc-14
+            workflow: debug_gcc_like
+          - os: macos-15
+            compiler: apple-clang-17
+            workflow: debug_gcc_like
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: lukka/get-cmake@latest
-      - uses: lukka/run-cmake@v10
-        env:
-          CMAKE_GENERATOR: Unix Makefiles
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Cache
+        uses: actions/cache@v3
         with:
-          workflowPreset: default
+          key: ${{ matrix.os }}
+          path: ./build/
+      - name: Run CMake
+        run: cmake --workflow --preset ${{ matrix.workflow }} --fresh
