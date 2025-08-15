@@ -10,22 +10,17 @@ jobs:
       matrix:
         include:
           - os: windows-2022
-            compiler: msvc
+            compiler: msvc-17
             workflow: debug_msvc
           - os: ubuntu-24.04
             compiler: gcc-14
             workflow: debug_gcc_like
           - os: macos-15
-            compiler: apple-clang-17
+            compiler: clang-17
             workflow: debug_gcc_like
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Cache
-        uses: actions/cache@v3
-        with:
-          key: ${{ matrix.os }}
-          path: ./build/
       - name: Run CMake
         run: cmake --workflow --preset ${{ matrix.workflow }} --fresh
