@@ -271,7 +271,7 @@ namespace {
                         return node->inputs.at(0);
                     }
                     if (node->inputs.at(0)->type == grlang::node::Node::Type::DATA_OP_ADD && is_const(*node->inputs.at(0)->inputs.at(1))) {
-                        return make_node(grlang::node::Node::Type::DATA_OP_ADD, { node->inputs.at(0)->inputs.at(0), make_value_node(get_value_int(*node->inputs.at(0)->inputs.at(1)) + get_value_int(*node->inputs.at(1)))});
+                        return make_node(grlang::node::Node::Type::DATA_OP_ADD, {node->inputs.at(0)->inputs.at(0), make_value_node(get_value_int(*node->inputs.at(0)->inputs.at(1)) + get_value_int(*node->inputs.at(1)))});
                     }
                 }
                 break;
@@ -320,13 +320,13 @@ namespace {
             case TokenType::OPERATOR_MINUS: {
                 parser.read_next_token();
                 auto precedence = operation_precedence(grlang::node::Node::Type::DATA_OP_NEG);
-                result = make_peep_node(grlang::node::Node::Type::DATA_OP_NEG, { parse_expression(parser, scope, precedence) });
+                result = make_peep_node(grlang::node::Node::Type::DATA_OP_NEG, {parse_expression(parser, scope, precedence)});
                 break;
             }
             case TokenType::OPERATOR_EXCLAM: {
                 parser.read_next_token();
                 auto precedence = operation_precedence(grlang::node::Node::Type::DATA_OP_NOT);
-                result = make_peep_node(grlang::node::Node::Type::DATA_OP_NOT, { parse_expression(parser, scope, precedence) });
+                result = make_peep_node(grlang::node::Node::Type::DATA_OP_NOT, {parse_expression(parser, scope, precedence)});
                 break;
             }
             case TokenType::IDENTIFIER:
@@ -363,9 +363,20 @@ namespace {
     void merge_scopes(const Scope& src1, const Scope& src2, Scope& dst, const grlang::node::Node::Ptr& region) {
         for (auto& [key, val] : dst) {
             if (src1.at(key) != src2.at(key)) {  // TODO: make into a value comparison
-                val = make_peep_node(grlang::node::Node::Type::DATA_PHI, { region, src1.at(key), src2.at(key) });
+                val = make_peep_node(grlang::node::Node::Type::DATA_PHI, {region, src1.at(key), src2.at(key)});
             } else {
                 val = src1.at(key);
+            }
+        }
+    }
+
+    void end_loop(const Scope& base, const Scope& loop, Scope& dst) {
+        for (auto& [key, val] : dst) {
+            if (key != "$ctl" && base.at(key) != loop.at(key)) {
+                assert(base.at(key)->type == grlang::node::Node::Type::DATA_PHI);
+                assert(base.at(key)->inputs.at(2) == nullptr);
+                base.at(key)->inputs.at(2) = loop.at(key);
+                val = base.at(key);
             }
         }
     }
@@ -376,14 +387,14 @@ namespace {
         assert(parser.next_token.value == "if");
         parser.read_next_token();
         auto condition = parse_expression(parser, scope, 255);
-        auto ifelse = make_peep_node(grlang::node::Node::Type::CONTROL_IFELSE, { scope.at("$ctl"), condition });
+        auto ifelse = make_peep_node(grlang::node::Node::Type::CONTROL_IFELSE, {scope.at("$ctl"), condition});
         
-        auto true_proj = make_peep_node(grlang::node::Node::Type::CONTROL_PROJECT, 0, { ifelse });
+        auto true_proj = make_peep_node(grlang::node::Node::Type::CONTROL_PROJECT, 0, {ifelse});
         auto true_scope = scope;
         true_scope["$ctl"] = true_proj;
         parse_statement(parser, true_scope, stop);
         
-        auto false_proj = make_peep_node(grlang::node::Node::Type::CONTROL_PROJECT, 1, { ifelse });
+        auto false_proj = make_peep_node(grlang::node::Node::Type::CONTROL_PROJECT, 1, {ifelse});
         auto false_scope = scope;
         false_scope["$ctl"] = false_proj;
         if (parser.next_token.value == "else")
@@ -392,7 +403,7 @@ namespace {
             parse_statement(parser, false_scope, stop);
         }
         
-        auto region = make_node(grlang::node::Node::Type::CONTROL_REGION, { nullptr, true_proj, false_proj }); // dont peephole region before phis
+        auto region = make_node(grlang::node::Node::Type::CONTROL_REGION, {nullptr, true_proj, false_proj});
         merge_scopes(true_scope, false_scope, scope, region);
         scope["$ctl"] = peephole(region);
         return;
@@ -402,16 +413,19 @@ namespace {
         assert(parser.next_token.value == "while");
         parser.read_next_token();
         auto condition = parse_expression(parser, scope, 255);
-        auto region = make_node(grlang::node::Node::Type::CONTROL_REGION, { nullptr, scope.at("$ctl"), nullptr }); // dont peephole region before phis
-        auto ifelse = make_peep_node(grlang::node::Node::Type::CONTROL_IFELSE, { region, condition });
-        auto true_proj = region->inputs.at(2) = make_peep_node(grlang::node::Node::Type::CONTROL_PROJECT, 0, { ifelse });
-        auto true_scope = scope;
-        true_scope["$ctl"] = true_proj;
-        parse_statement(parser, true_scope, stop);
+        auto region = make_node(grlang::node::Node::Type::CONTROL_REGION, {nullptr, scope.at("$ctl"), nullptr});
+        auto ifelse = make_peep_node(grlang::node::Node::Type::CONTROL_IFELSE, {region, condition});
+        auto loop_proj = region->inputs.at(2) = make_node(grlang::node::Node::Type::CONTROL_PROJECT, 0, {ifelse});
+        Scope loop_scope;
+        for (auto& [k,v]: scope) {
+            loop_scope[k] = make_node(grlang::node::Node::Type::DATA_PHI, {region, v, nullptr});
+        }
+        loop_scope["$ctl"] = loop_proj;
+        auto unmodified = loop_scope;
+        parse_statement(parser, loop_scope, stop);
+        end_loop(unmodified, loop_scope, scope);
 
-        auto false_proj = make_peep_node(grlang::node::Node::Type::CONTROL_PROJECT, 1, { ifelse });
-        merge_scopes(scope, true_scope, scope, region);
-        scope["$ctl"] = false_proj;
+        scope["$ctl"] = make_node(grlang::node::Node::Type::CONTROL_PROJECT, 1, {ifelse});;
         return;
     }
 
@@ -439,7 +453,7 @@ namespace {
         case TokenType::IDENTIFIER: {
             if (parser.next_token.value == "return") {
                 parser.read_next_token();
-                auto result = make_peep_node(grlang::node::Node::Type::CONTROL_RETURN, { scope.at("$ctl"), parse_expression(parser, scope, 255) });
+                auto result = make_peep_node(grlang::node::Node::Type::CONTROL_RETURN, {scope.at("$ctl"), parse_expression(parser, scope, 255)});
                 stop->inputs.push_back(result);
                 break;
             }
@@ -460,7 +474,7 @@ namespace {
                     throw std::runtime_error("already defined");
                 }
                 parser.read_next_token();
-                assert(parser.next_token.value == "int");   // TODO: read type
+                assert(parser.next_token.value == "int");  // TODO: parse type
                 parser.read_next_token();
             } else if (!scope.contains(name)) {
                 throw std::runtime_error("not defined");

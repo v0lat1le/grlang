@@ -124,8 +124,36 @@ void test_while() {
 
     node = node->inputs.at(0);
     assert(node->type == grlang::node::Node::Type::CONTROL_RETURN);
-    //assert(node->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_PROJECT);
-    //assert(node->inputs.at(0)->value == 1);
+    assert(node->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_PROJECT);
+    assert(node->inputs.at(0)->value == 1);
+    assert(node->inputs.at(0)->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_IFELSE);
+    assert(node->inputs.at(0)->inputs.at(0)->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_REGION);
+    auto reg = node->inputs.at(0)->inputs.at(0)->inputs.at(0);
+    assert(reg->inputs.at(1)->type == grlang::node::Node::Type::CONTROL_START);
+    assert(reg->inputs.at(2)->type == grlang::node::Node::Type::CONTROL_PROJECT);
+    assert(reg->inputs.at(2)->value == 0);
+    assert(reg->inputs.at(2)->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_IFELSE);
+    assert(reg->inputs.at(2)->inputs.at(0) == node->inputs.at(0)->inputs.at(0));
+
+    assert(node->inputs.at(1)->type == grlang::node::Node::Type::DATA_PHI);
+    auto arg_phi = node->inputs.at(1);
+    assert(arg_phi->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_REGION);
+    assert(arg_phi->inputs.at(0) == reg);
+
+    assert(arg_phi->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM);
+    assert(arg_phi->inputs.at(2)->type == grlang::node::Node::Type::DATA_OP_ADD);
+    assert(arg_phi->inputs.at(2)->inputs.at(0) == arg_phi);
+    assert(arg_phi->inputs.at(2)->inputs.at(1)->type == grlang::node::Node::Type::DATA_OP_ADD);
+
+    auto a_add = arg_phi->inputs.at(2)->inputs.at(1);
+    assert(a_add->inputs.at(0)->type == grlang::node::Node::Type::DATA_PHI);
+    assert(a_add->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM);
+
+    auto a_phi = node->inputs.at(1);
+    assert(a_phi->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM);
+    assert(a_phi->inputs.at(2)->type == grlang::node::Node::Type::DATA_OP_ADD);
+    assert(a_phi->inputs.at(2)->inputs.at(0) == a_phi);
+    assert(a_phi->inputs.at(2)->inputs.at(1)->type == grlang::node::Node::Type::DATA_OP_ADD);
 }
 
 int main() {
