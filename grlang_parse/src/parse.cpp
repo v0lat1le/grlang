@@ -329,6 +329,15 @@ namespace {
                 result = make_peep_node(grlang::node::Node::Type::DATA_OP_NOT, {parse_expression(parser, scope, precedence)});
                 break;
             }
+            case TokenType::OPEN_ROUND:
+                parser.read_next_token();
+                result = parse_expression(parser, scope, 255);
+                if (parser.next_token.type != TokenType::CLOSE_ROUND) {
+                    throw std::runtime_error("Expected )");
+                }
+                parser.read_next_token();
+                break;
+            
             case TokenType::IDENTIFIER:
                 result = scope.at(parser.next_token.value);
                 parser.read_next_token();

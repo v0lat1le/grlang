@@ -26,6 +26,16 @@ void test_arithmetic_peep() {
     assert(node->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM);
     assert(get_value_int(*node->inputs.at(1)) == -18);
 
+    node = grlang::parse::parse("return (3-1)*2*-(-5+3)");
+    assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
+    assert(node->inputs.size() == 1);
+
+    node = node->inputs.at(0);
+    assert(node->type == grlang::node::Node::Type::CONTROL_RETURN);
+    assert(node->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_START);
+    assert(node->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM);
+    assert(get_value_int(*node->inputs.at(1)) == 8);
+
     node = grlang::parse::parse("return 2+arg+3");
     assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
     assert(node->inputs.size() == 1);

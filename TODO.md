@@ -1,7 +1,6 @@
 # GrLang TODO
 
-### Todo
-
+### To do
 - [ ] `break` statement
 - [ ] `continue` statement
 - [ ] more types
@@ -14,5 +13,3 @@
 - [ ] debug print
 
 ### In Progress
-
-### Done ✓
