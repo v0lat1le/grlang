@@ -132,21 +132,6 @@ namespace {
         return {TokenType::INVALID_INPUT, code};
     }
 
-    using Scope = std::unordered_map<std::string_view, grlang::node::Node::Ptr>;
-
-    struct Parser {
-        std::string_view code;
-        Token next_token;
-
-        Parser(std::string_view code_) : code(code_) {
-            read_next_token();
-        }
-
-        void read_next_token() {
-            next_token = ::read_token(code);
-        }
-    };
-
     grlang::node::Node::Type operation_type(TokenType token) {
         switch (token) {
             case TokenType::OPERATOR_PLUS:
@@ -314,6 +299,97 @@ namespace {
         return peephole(make_node(type, value, inputs));
     }
 
+    struct Scope {
+        using Dict = std::unordered_map<std::string_view, grlang::node::Node::Ptr>;
+
+        std::vector<Dict> stack;
+        grlang::node::Node::Ptr control;
+
+        grlang::node::Node::Ptr lookup(const std::string_view& name) const {
+            for (auto dict = stack.rbegin(); dict!=stack.rend(); ++dict) {
+                if (auto it = dict->find(name); it != dict->end()) {
+                    return it->second;
+                }
+            }
+            return nullptr;
+        }
+
+        void update(const std::string_view& name, grlang::node::Node::Ptr node) {
+            for (auto dict = stack.rbegin(); dict!=stack.rend(); ++dict) {
+                if (auto it = dict->find(name); it != dict->end()) {
+                    it->second = node;
+                    return;
+                }
+            }
+            throw std::runtime_error("not defined");
+        }
+
+        void declare(const std::string_view& name, grlang::node::Node::Ptr node) {
+            for (auto dict = stack.rbegin(); dict!=stack.rend(); ++dict) {
+                if (auto it = dict->find(name); it != dict->end()) {
+                    throw std::runtime_error("already defined");
+                }
+            }
+            stack.back()[name] = node;
+        }
+
+        grlang::node::Node::Ptr merge(const Scope& src1, const Scope& src2) {
+            auto region = make_node(grlang::node::Node::Type::CONTROL_REGION, {nullptr, src1.control, src2.control});
+            for (std::size_t i=0; i<stack.size(); ++i) {
+                for (auto& [key, val] : stack.at(i)) {
+                    if (src1.stack.at(i).at(key) != src2.stack.at(i).at(key)) {  // TODO: make into a value comparison
+                        val = make_peep_node(grlang::node::Node::Type::DATA_PHI, {region, src1.stack.at(i).at(key), src2.stack.at(i).at(key)});
+                    } else {
+                        val = src1.stack.at(i).at(key);
+                    }
+                }
+            }
+            return control = peephole(region);
+        }
+
+        grlang::node::Node::Ptr start_loop() {
+            auto region = make_node(grlang::node::Node::Type::CONTROL_REGION, {nullptr, control, nullptr});
+            for (std::size_t i=0; i<stack.size(); ++i) {
+                for (auto& [key, val] : stack.at(i)) {
+                    val = make_node(grlang::node::Node::Type::DATA_PHI, {region, val, nullptr});
+                }
+            }
+            return region;
+        }
+
+        void end_loop(const Scope& loop_scope) {
+            for (std::size_t i=0; i<stack.size(); ++i) {
+                for (auto& [key, val] : stack.at(i)) {
+                    assert(val->type == grlang::node::Node::Type::DATA_PHI);
+                    assert(val->inputs.at(2) == nullptr);
+                    if (val != loop_scope.stack.at(i).at(key)) {
+                        val->inputs.at(2) = loop_scope.stack.at(i).at(key);
+                    } else {
+                        val->inputs.at(2) = val->inputs.at(1);
+                    }
+                }
+            }
+        }
+    };
+
+    struct LoopState {
+        Scope* break_;
+        Scope* continue_;
+    };
+
+    struct Parser {
+        std::string_view code;
+        Token next_token;
+
+        Parser(std::string_view code_) : code(code_) {
+            read_next_token();
+        }
+
+        void read_next_token() {
+            next_token = ::read_token(code);
+        }
+    };
+
     grlang::node::Node::Ptr parse_expression(Parser& parser, const Scope& scope, std::uint8_t prev_precedence) {
         grlang::node::Node::Ptr result;
         switch (parser.next_token.type) {
@@ -339,7 +415,7 @@ namespace {
                 break;
             
             case TokenType::IDENTIFIER:
-                result = scope.at(parser.next_token.value);
+                result = scope.lookup(parser.next_token.value);
                 parser.read_next_token();
                 break;
             case TokenType::LITERAL_INT:
@@ -363,136 +439,133 @@ namespace {
         return result;
     }
 
-    void merge_scope(const Scope& src, Scope& dst) {
-        for (auto& [key, val] : dst) {
-            val = src.at(key);
-        }
-    }
+    void parse_statement(Parser& parser, Scope& scope, const LoopState& loop, const grlang::node::Node::Ptr& stop);
 
-    void merge_scopes(const Scope& src1, const Scope& src2, Scope& dst, const grlang::node::Node::Ptr& region) {
-        for (auto& [key, val] : dst) {
-            if (src1.at(key) != src2.at(key)) {  // TODO: make into a value comparison
-                val = make_peep_node(grlang::node::Node::Type::DATA_PHI, {region, src1.at(key), src2.at(key)});
-            } else {
-                val = src1.at(key);
-            }
-        }
-    }
-
-    void end_loop(const Scope& base, const Scope& loop, Scope& dst) {
-        for (auto& [key, val] : dst) {
-            if (key != "$ctl" && base.at(key) != loop.at(key)) {
-                assert(base.at(key)->type == grlang::node::Node::Type::DATA_PHI);
-                assert(base.at(key)->inputs.at(2) == nullptr);
-                base.at(key)->inputs.at(2) = loop.at(key);
-                val = base.at(key);
-            }
-        }
-    }
-
-    void parse_statement(Parser& parser, Scope& scope, const grlang::node::Node::Ptr& stop);
-
-    void parse_ifelse(Parser& parser, Scope& scope, const grlang::node::Node::Ptr& stop) {
+    void parse_ifelse(Parser& parser, Scope& scope, const LoopState& loop, const grlang::node::Node::Ptr& stop) {
         assert(parser.next_token.value == "if");
         parser.read_next_token();
         auto condition = parse_expression(parser, scope, 255);
-        auto ifelse = make_peep_node(grlang::node::Node::Type::CONTROL_IFELSE, {scope.at("$ctl"), condition});
+        auto ifelse = make_peep_node(grlang::node::Node::Type::CONTROL_IFELSE, {scope.control, condition});
         
-        auto true_proj = make_peep_node(grlang::node::Node::Type::CONTROL_PROJECT, 0, {ifelse});
         auto true_scope = scope;
-        true_scope["$ctl"] = true_proj;
-        parse_statement(parser, true_scope, stop);
+        true_scope.control = make_peep_node(grlang::node::Node::Type::CONTROL_PROJECT, 0, {ifelse});
+        parse_statement(parser, true_scope, loop, stop);
         
-        auto false_proj = make_peep_node(grlang::node::Node::Type::CONTROL_PROJECT, 1, {ifelse});
         auto false_scope = scope;
-        false_scope["$ctl"] = false_proj;
+        false_scope.control = make_peep_node(grlang::node::Node::Type::CONTROL_PROJECT, 1, {ifelse});
         if (parser.next_token.value == "else")
         {
             parser.read_next_token();
-            parse_statement(parser, false_scope, stop);
+            parse_statement(parser, false_scope, loop, stop);
         }
-        
-        auto region = make_node(grlang::node::Node::Type::CONTROL_REGION, {nullptr, true_proj, false_proj});
-        merge_scopes(true_scope, false_scope, scope, region);
-        scope["$ctl"] = peephole(region);
-        return;
+        scope.merge(true_scope, false_scope);
     }
 
     void parse_while(Parser& parser, Scope& scope, const grlang::node::Node::Ptr& stop) {
         assert(parser.next_token.value == "while");
         parser.read_next_token();
+        auto loop_region = scope.start_loop();
         auto condition = parse_expression(parser, scope, 255);
-        auto region = make_node(grlang::node::Node::Type::CONTROL_REGION, {nullptr, scope.at("$ctl"), nullptr});
-        auto ifelse = make_peep_node(grlang::node::Node::Type::CONTROL_IFELSE, {region, condition});
-        auto loop_proj = region->inputs.at(2) = make_node(grlang::node::Node::Type::CONTROL_PROJECT, 0, {ifelse});
-        Scope loop_scope;
-        for (auto& [k,v]: scope) {
-            loop_scope[k] = make_node(grlang::node::Node::Type::DATA_PHI, {region, v, nullptr});
-        }
-        loop_scope["$ctl"] = loop_proj;
-        auto unmodified = loop_scope;
-        parse_statement(parser, loop_scope, stop);
-        end_loop(unmodified, loop_scope, scope);
+        auto ifelse = make_node(grlang::node::Node::Type::CONTROL_IFELSE, {loop_region, condition});
+        scope.control = make_node(grlang::node::Node::Type::CONTROL_PROJECT, 1, {ifelse});
+        auto loop_scope = scope;
+        loop_scope.control = make_node(grlang::node::Node::Type::CONTROL_PROJECT, 0, {ifelse});
 
-        scope["$ctl"] = make_node(grlang::node::Node::Type::CONTROL_PROJECT, 1, {ifelse});;
-        return;
+        auto base_scope = scope;
+        Scope continue_scope{};
+        continue_scope.control = loop_scope.control;
+        parse_statement(parser, loop_scope, {&scope, &continue_scope}, stop);
+        if (continue_scope.stack.empty()) {
+            continue_scope = loop_scope;
+        } else {
+            continue_scope.merge(continue_scope, loop_scope);
+        }
+        loop_region->inputs.at(2) = continue_scope.control;
+        base_scope.end_loop(continue_scope);
     }
 
-    void parse_block(Parser& parser, Scope& scope, const grlang::node::Node::Ptr& stop) {
+    void parse_break(Parser& parser, Scope& scope, const LoopState& loop) {
+        assert(parser.next_token.value == "break");
+        parser.read_next_token();
+        if (loop.break_ == nullptr) {
+           throw std::runtime_error("break outside of a loop!");
+        }
+        loop.break_->merge(scope, *loop.break_);
+    }
+
+    void parse_continue(Parser& parser, Scope& scope, const LoopState& loop) {
+        assert(parser.next_token.value == "continue");
+        parser.read_next_token();
+        if (loop.continue_ == nullptr) {
+           throw std::runtime_error("continue outside of a loop!");
+        }
+        if (loop.continue_->stack.empty()) {
+            *loop.continue_ = scope;
+        } else {
+            loop.continue_->merge(*loop.continue_, scope);
+        }
+    }
+
+    void parse_block(Parser& parser, Scope& scope, const LoopState& loop, const grlang::node::Node::Ptr& stop) {
         while (parser.next_token.type != TokenType::CLOSE_CURLY && parser.next_token.type != TokenType::END_OF_INPUT) {
-            parse_statement(parser, scope, stop);
+            parse_statement(parser, scope, loop, stop);
         }
     }
 
-    void parse_statement(Parser& parser, Scope& scope, const grlang::node::Node::Ptr& stop) {
+    void parse_statement(Parser& parser, Scope& scope, const LoopState& loop, const grlang::node::Node::Ptr& stop) {
         switch (parser.next_token.type) {
         case TokenType::END_OF_INPUT:
             break;
         case TokenType::OPEN_CURLY: {
             parser.read_next_token();
-            auto new_scope = scope;
-            parse_block(parser, new_scope, stop);
+            scope.stack.emplace_back();
+            parse_block(parser, scope, loop, stop);
             if (parser.next_token.type != TokenType::CLOSE_CURLY) {
                 throw std::runtime_error("Expected }");
             }
-            merge_scope(new_scope, scope);
+            scope.stack.pop_back();
             parser.read_next_token();
             break;
         }
         case TokenType::IDENTIFIER: {
             if (parser.next_token.value == "return") {
                 parser.read_next_token();
-                auto result = make_peep_node(grlang::node::Node::Type::CONTROL_RETURN, {scope.at("$ctl"), parse_expression(parser, scope, 255)});
+                auto result = make_peep_node(grlang::node::Node::Type::CONTROL_RETURN, {scope.control, parse_expression(parser, scope, 255)});
                 stop->inputs.push_back(result);
                 break;
             }
             if (parser.next_token.value == "if") {
-                parse_ifelse(parser, scope, stop);
+                parse_ifelse(parser, scope, loop, stop);
                 break;
             }
             if (parser.next_token.value == "while") {
                 parse_while(parser, scope, stop);
                 break;
             }
+            if (parser.next_token.value == "break") {
+                parse_break(parser, scope, loop);
+                break;
+            }
+            if (parser.next_token.value == "continue") {
+                parse_continue(parser, scope, loop);
+                break;
+            }
 
             auto name = parser.next_token.value;
             // TODO: check name is not a keyword
             parser.read_next_token();
+            auto scope_update = &Scope::update;
             if (parser.next_token.type == TokenType::COLON) {
-                if (scope.contains(name)) {
-                    throw std::runtime_error("already defined");
-                }
                 parser.read_next_token();
                 assert(parser.next_token.value == "int");  // TODO: parse type
                 parser.read_next_token();
-            } else if (!scope.contains(name)) {
-                throw std::runtime_error("not defined");
+                scope_update = &Scope::declare;
             }
             if (parser.next_token.type != TokenType::EQUALS) {
                 throw std::runtime_error("Expected assignment");
             }
             parser.read_next_token();
-            scope[name] = parse_expression(parser, scope, 255);
+            (scope.*scope_update)(name, parse_expression(parser, scope, 255));
             break;
         }
         default:
@@ -504,10 +577,10 @@ namespace {
 grlang::node::Node::Ptr grlang::parse::parse(std::string_view code) {
     Parser parser(code);
     Scope scope;
-    auto start = make_node(grlang::node::Node::Type::CONTROL_START);
-    scope["$ctl"] = start;
-    scope["arg"] = make_value_node(grlang::node::Value::Type::INTEGER);
+    scope.stack.emplace_back();
+    scope.control = make_node(grlang::node::Node::Type::CONTROL_START);
+    scope.declare("arg", make_value_node(grlang::node::Value::Type::INTEGER));
     auto stop = make_node(grlang::node::Node::Type::CONTROL_STOP);
-    parse_block(parser, scope, stop);
+    parse_block(parser, scope, {}, stop);
     return stop;
 }

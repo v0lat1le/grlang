@@ -117,18 +117,8 @@ void test_if_else_peep() {
     assert(get_value_int(*node->inputs.at(1)) == 26);
 }
 
-void test_if_else_dom() {
-    auto node = grlang::parse::parse("a:int=0 b:int=1 if arg { a=2 if arg b=2 else b=3 } return a+b");
-    assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
-    assert(node->inputs.size() == 1);
-
-    node = node->inputs.at(0);
-    assert(node->type == grlang::node::Node::Type::CONTROL_RETURN);
-    assert(node->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_REGION);
-}
-
 void test_while() {
-    auto node = grlang::parse::parse("a:int=0 while a < 10 { a = a+1 arg = arg+a } return arg");
+    auto node = grlang::parse::parse("while arg < 10 arg = 6 return arg");
     assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
     assert(node->inputs.size() == 1);
 
@@ -151,19 +141,57 @@ void test_while() {
     assert(arg_phi->inputs.at(0) == reg);
 
     assert(arg_phi->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM);
-    assert(arg_phi->inputs.at(2)->type == grlang::node::Node::Type::DATA_OP_ADD);
-    assert(arg_phi->inputs.at(2)->inputs.at(0) == arg_phi);
-    assert(arg_phi->inputs.at(2)->inputs.at(1)->type == grlang::node::Node::Type::DATA_OP_ADD);
+    assert(arg_phi->inputs.at(2)->type == grlang::node::Node::Type::DATA_TERM);
+    assert(get_value_int(*arg_phi->inputs.at(2)) == 6);
+}
 
-    auto a_add = arg_phi->inputs.at(2)->inputs.at(1);
-    assert(a_add->inputs.at(0)->type == grlang::node::Node::Type::DATA_PHI);
-    assert(a_add->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM);
+void test_while_break() {
+    auto node = grlang::parse::parse("while arg < 10 { arg = 5 break arg = 6 } return arg");
+    assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
+    assert(node->inputs.size() == 1);
 
-    auto a_phi = node->inputs.at(1);
-    assert(a_phi->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM);
-    assert(a_phi->inputs.at(2)->type == grlang::node::Node::Type::DATA_OP_ADD);
-    assert(a_phi->inputs.at(2)->inputs.at(0) == a_phi);
-    assert(a_phi->inputs.at(2)->inputs.at(1)->type == grlang::node::Node::Type::DATA_OP_ADD);
+    node = node->inputs.at(0);
+    assert(node->type == grlang::node::Node::Type::CONTROL_RETURN);
+    assert(node->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_REGION);
+    assert(node->inputs.at(0)->inputs.at(1)->type == grlang::node::Node::Type::CONTROL_PROJECT);
+    assert(node->inputs.at(0)->inputs.at(1)->value == 0);
+    assert(node->inputs.at(0)->inputs.at(2)->type == grlang::node::Node::Type::CONTROL_PROJECT);
+    assert(node->inputs.at(0)->inputs.at(2)->value == 1);
+
+    assert(node->inputs.at(1)->type == grlang::node::Node::Type::DATA_PHI);
+    auto arg_phi = node->inputs.at(1);
+    assert(get_value_int(*arg_phi->inputs.at(1)) == 5);
+    assert(arg_phi->inputs.at(2)->type == grlang::node::Node::Type::DATA_PHI);
+    assert(arg_phi->inputs.at(2)->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM);
+    assert(get_value_int(*arg_phi->inputs.at(2)->inputs.at(2)) == 6);
+}
+
+void test_while_continue() {
+    auto node = grlang::parse::parse("while arg < 10 { arg = 5 continue arg = 6 } return arg");
+    assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
+    assert(node->inputs.size() == 1);
+
+    node = node->inputs.at(0);
+    assert(node->type == grlang::node::Node::Type::CONTROL_RETURN);
+    assert(node->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_PROJECT);
+    assert(node->inputs.at(0)->value == 1);
+    assert(node->inputs.at(0)->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_IFELSE);
+    assert(node->inputs.at(0)->inputs.at(0)->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_REGION);
+    auto reg = node->inputs.at(0)->inputs.at(0)->inputs.at(0);
+    assert(reg->inputs.at(1)->type == grlang::node::Node::Type::CONTROL_START);
+    assert(reg->inputs.at(2)->type == grlang::node::Node::Type::CONTROL_REGION);
+
+    assert(reg->inputs.at(2)->inputs.at(1)->type == grlang::node::Node::Type::CONTROL_PROJECT);
+    assert(reg->inputs.at(2)->inputs.at(2)->value == 0);
+    assert(reg->inputs.at(2)->inputs.at(2)->type == grlang::node::Node::Type::CONTROL_PROJECT);
+    assert(reg->inputs.at(2)->inputs.at(2)->value == 0);
+
+    assert(node->inputs.at(1)->type == grlang::node::Node::Type::DATA_PHI);
+    auto arg_phi = node->inputs.at(1);
+    assert(arg_phi->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM);
+    assert(arg_phi->inputs.at(2)->type == grlang::node::Node::Type::DATA_PHI);
+    assert(get_value_int(*arg_phi->inputs.at(2)->inputs.at(1)) == 5);
+    assert(get_value_int(*arg_phi->inputs.at(2)->inputs.at(2)) == 6);
 }
 
 int main() {
@@ -173,7 +201,8 @@ int main() {
     test_scopes();
     test_if_else();
     test_if_else_peep();
-    test_if_else_dom();
     test_while();
+    test_while_break();
+    test_while_continue();
     return 0;
 }

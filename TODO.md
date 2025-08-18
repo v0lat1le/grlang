@@ -1,15 +1,12 @@
 # GrLang TODO
 
-### To do
-- [ ] `break` statement
-- [ ] `continue` statement
+### To Do
+- [ ] functions
 - [ ] more types
-- [ ] cleanup graph cycles
-- [ ] improve scope handling
-  - [ ] unnecessary copying
-- [ ] lazy phi
-- [ ] codegen
 - [ ] graph eval
 - [ ] debug print
+- [ ] cleanup graph cycles
+- [ ] lazy phi
+- [ ] codegen
 
 ### In Progress

@@ -6,7 +6,8 @@
             "hidden": true,
             "binaryDir": "${sourceDir}/build/${presetName}",
             "cacheVariables": {
-                "GRLANG_PARSE_BUILD_TESTS": "ON"
+                "GRLANG_PARSE_BUILD_TESTS": "ON",
+                "CMAKE_BUILD_TYPE": "Debug"
             }
         },
         {
