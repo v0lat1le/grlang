@@ -50,7 +50,7 @@ namespace {
         IDENTIFIER,
         LITERAL_INT,
 
-        OPERATOR_BEGIN,  // NOTE: put binary operation tags between OPERATOR_BEGIN and OPERATOR_END
+        META_BINARY_BEGIN,  // NOTE: put binary operation tags between META_BINARY_BEGIN and META_BINARY_END
         OPERATOR_PLUS,
         OPERATOR_MINUS,
         OPERATOR_STAR,
@@ -61,17 +61,22 @@ namespace {
         OPERATOR_LEQ,
         OPERATOR_EQ,
         OPERATOR_NEQ,
-        OPERATOR_END,
-        OPERATOR_EXCLAM,
+        META_BINARY_END,
+        OPERATOR_NOT,
 
-        EQUALS,
-        COLON,
+        DECLARE_TYPE,
+        DECLARE_AUTO,
+        REBIND,
+
         SEMICOLON,
         ARROW,
+
         OPEN_CURLY,
         CLOSE_CURLY,
         OPEN_ROUND,
         CLOSE_ROUND,
+        OPEN_SQUARE,
+        CLOSE_SQUARE,
 
         END_OF_INPUT,
         INVALID_INPUT,
@@ -111,15 +116,17 @@ namespace {
             case ')':
                 return {TokenType::CLOSE_ROUND, read_chars(code, 1)};
             case ':':
-                return {TokenType::COLON, read_chars(code, 1)};
+                return code.size() > 1 && code[1] == '=' ?
+                    Token{TokenType::DECLARE_AUTO, read_chars(code, 2)} :
+                    Token{TokenType::DECLARE_TYPE, read_chars(code, 1)};
             case '=':
                 return code.size() > 1 && code[1] == '=' ?
                     Token{TokenType::OPERATOR_EQ, read_chars(code, 2)} :
-                    Token{TokenType::EQUALS, read_chars(code, 1)};
+                    Token{TokenType::REBIND, read_chars(code, 1)};
             case '!':
                 return code.size() > 1 && code[1] == '=' ?
                     Token{TokenType::OPERATOR_NEQ, read_chars(code, 2)} :
-                    Token{TokenType::OPERATOR_EXCLAM, read_chars(code, 1) };
+                    Token{TokenType::OPERATOR_NOT, read_chars(code, 1) };
             case '>':
                 return code.size() > 1 && code[1] == '=' ?
                     Token{TokenType::OPERATOR_GEQ, read_chars(code, 2)} :
@@ -399,7 +406,7 @@ namespace {
                 result = make_peep_node(grlang::node::Node::Type::DATA_OP_NEG, {parse_expression(parser, scope, precedence)});
                 break;
             }
-            case TokenType::OPERATOR_EXCLAM: {
+            case TokenType::OPERATOR_NOT: {
                 parser.read_next_token();
                 auto precedence = operation_precedence(grlang::node::Node::Type::DATA_OP_NOT);
                 result = make_peep_node(grlang::node::Node::Type::DATA_OP_NOT, {parse_expression(parser, scope, precedence)});
@@ -426,7 +433,7 @@ namespace {
                 throw std::runtime_error("Expected operand!");
         }
 
-        while (parser.next_token.type > TokenType::OPERATOR_BEGIN && parser.next_token.type < TokenType::OPERATOR_END) {
+        while (parser.next_token.type > TokenType::META_BINARY_BEGIN && parser.next_token.type < TokenType::META_BINARY_END) {
             auto node_type = operation_type(parser.next_token.type);
             auto precedence = operation_precedence(node_type);
             if (prev_precedence < precedence) {
@@ -439,7 +446,7 @@ namespace {
         return result;
     }
 
-    void parse_statement(Parser& parser, Scope& scope, const LoopState& loop, const grlang::node::Node::Ptr& stop);
+    void parse_statement(Parser &parser, Scope &scope, const LoopState &loop, const grlang::node::Node::Ptr &stop);
 
     void parse_ifelse(Parser& parser, Scope& scope, const LoopState& loop, const grlang::node::Node::Ptr& stop) {
         assert(parser.next_token.value == "if");
@@ -512,6 +519,40 @@ namespace {
         }
     }
 
+    void parse_type(Parser& parser)
+    {
+        assert(parser.next_token.value == "int");
+        parser.read_next_token();
+    }
+
+    void parse_identifier_things(Parser& parser, Scope& scope) {
+            auto name = parser.next_token.value;
+            // TODO: check name is not a keyword
+            parser.read_next_token();
+            auto scope_update = &Scope::update;
+            switch (parser.next_token.type) {
+                case TokenType::DECLARE_AUTO:
+                    parser.read_next_token();
+                    scope_update = &Scope::declare;
+                    break;
+                case TokenType::DECLARE_TYPE:
+                    parser.read_next_token();
+                    parse_type(parser);  // TODO: handle different types
+                    scope_update = &Scope::declare;
+                    if (parser.next_token.type != TokenType::REBIND) {
+                        throw std::runtime_error("Expected assignment");
+                    }
+                    parser.read_next_token();
+                    break;
+                case TokenType::REBIND:
+                    parser.read_next_token();
+                    break;
+                default:
+                    throw std::runtime_error("Expected declaration or assignment");
+            }
+            (scope.*scope_update)(name, parse_expression(parser, scope, 255));
+    }
+
     void parse_statement(Parser& parser, Scope& scope, const LoopState& loop, const grlang::node::Node::Ptr& stop) {
         switch (parser.next_token.type) {
         case TokenType::END_OF_INPUT:
@@ -532,40 +573,17 @@ namespace {
                 parser.read_next_token();
                 auto result = make_peep_node(grlang::node::Node::Type::CONTROL_RETURN, {scope.control, parse_expression(parser, scope, 255)});
                 stop->inputs.push_back(result);
-                break;
-            }
-            if (parser.next_token.value == "if") {
+            } else if (parser.next_token.value == "if") {
                 parse_ifelse(parser, scope, loop, stop);
-                break;
-            }
-            if (parser.next_token.value == "while") {
+            } else if (parser.next_token.value == "while") {
                 parse_while(parser, scope, stop);
-                break;
-            }
-            if (parser.next_token.value == "break") {
+            } else if (parser.next_token.value == "break") {
                 parse_break(parser, scope, loop);
-                break;
-            }
-            if (parser.next_token.value == "continue") {
+            } else if (parser.next_token.value == "continue") {
                 parse_continue(parser, scope, loop);
-                break;
+            } else {
+                parse_identifier_things(parser, scope);
             }
-
-            auto name = parser.next_token.value;
-            // TODO: check name is not a keyword
-            parser.read_next_token();
-            auto scope_update = &Scope::update;
-            if (parser.next_token.type == TokenType::COLON) {
-                parser.read_next_token();
-                assert(parser.next_token.value == "int");  // TODO: parse type
-                parser.read_next_token();
-                scope_update = &Scope::declare;
-            }
-            if (parser.next_token.type != TokenType::EQUALS) {
-                throw std::runtime_error("Expected assignment");
-            }
-            parser.read_next_token();
-            (scope.*scope_update)(name, parse_expression(parser, scope, 255));
             break;
         }
         default:
