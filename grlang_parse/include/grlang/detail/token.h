@@ -27,6 +27,7 @@ namespace grlang::parse::detail {
         DECLARE_AUTO,
         REBIND,
 
+        COMMA,
         SEMICOLON,
         ARROW,
 

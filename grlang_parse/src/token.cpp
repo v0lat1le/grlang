@@ -50,7 +50,9 @@ namespace grlang::parse::detail {
         case '+':
             return {TokenType::OPERATOR_PLUS, read_chars(code, 1)};
         case '-':
-            return {TokenType::OPERATOR_MINUS, read_chars(code, 1)};
+            return code.size() > 1 && code[1] == '>' ?
+                Token{TokenType::ARROW, read_chars(code, 2)} :
+                Token{TokenType::OPERATOR_MINUS, read_chars(code, 1)};
         case '*':
             return {TokenType::OPERATOR_STAR, read_chars(code, 1)};
         case '/':
@@ -63,6 +65,8 @@ namespace grlang::parse::detail {
             return {TokenType::OPEN_ROUND, read_chars(code, 1)};
         case ')':
             return {TokenType::CLOSE_ROUND, read_chars(code, 1)};
+        case ',':
+            return {TokenType::COMMA, read_chars(code, 1)};
         case ':':
             return code.size() > 1 && code[1] == '=' ?
                 Token{TokenType::DECLARE_AUTO, read_chars(code, 2)} :

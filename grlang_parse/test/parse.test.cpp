@@ -86,6 +86,14 @@ TEST_CASE(test_scopes) {
     assert(get_value_int(*node->inputs.at(1)) == 7);
 }
 
+TEST_CASE(test_struct) {
+    auto node = grlang::parse::parse("a:{x:int,y:{z:int}}=0 return a");
+}
+
+TEST_CASE(test_function) {
+    auto node = grlang::parse::parse("a:{x:int}->int=0 return a");
+}
+
 TEST_CASE(test_if_else) {
     auto node = grlang::parse::parse("a:int=0 if arg<0 a=-arg else a=2*arg return a");
     assert(node->type == grlang::node::Node::Type::CONTROL_STOP);

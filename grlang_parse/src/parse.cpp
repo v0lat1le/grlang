@@ -1,6 +1,7 @@
 #include <stdexcept>
 #include <cstdint>
 #include <cassert>
+#include <unordered_set>
 #include <unordered_map>
 
 #include "grlang/detail/token.h"
@@ -398,38 +399,70 @@ namespace {
         }
     }
 
-    void parse_type(Parser& parser)
-    {
-        assert(parser.next_token.value == "int");
+    void parse_type(Parser& parser);
+
+    void parse_struct(Parser& parser) {
+        assert(parser.next_token.type == TokenType::OPEN_CURLY);
+        do {
+            parser.read_next_token();
+            if (parser.next_token.type != TokenType::IDENTIFIER) {
+                throw std::runtime_error("expected identifier");
+            }
+            auto name = parser.next_token.value;  // TODO: check is not a keyword
+            parser.read_next_token();
+            if (parser.next_token.type != TokenType::DECLARE_TYPE) {
+                throw std::runtime_error("expected :");
+            }
+            parser.read_next_token();
+            parse_type(parser);
+        } while (parser.next_token.type == TokenType::COMMA);
+        if (parser.next_token.type != TokenType::CLOSE_CURLY) {
+            throw std::runtime_error("expected }");
+        }
         parser.read_next_token();
     }
 
-    void parse_identifier_things(Parser& parser, Scope& scope) {
-            auto name = parser.next_token.value;
-            // TODO: check name is not a keyword
+    void parse_type(Parser& parser)
+    {
+        if (parser.next_token.type != TokenType::OPEN_CURLY) {
+            static std::unordered_set<std::string_view> builtin_types = {"int", "struct", "funct"};
+            assert(builtin_types.contains(parser.next_token.value));
             parser.read_next_token();
-            auto scope_update = &Scope::update;
-            switch (parser.next_token.type) {
-                case TokenType::DECLARE_AUTO:
-                    parser.read_next_token();
-                    scope_update = &Scope::declare;
-                    break;
-                case TokenType::DECLARE_TYPE:
-                    parser.read_next_token();
-                    parse_type(parser);  // TODO: handle different types
-                    scope_update = &Scope::declare;
-                    if (parser.next_token.type != TokenType::REBIND) {
-                        throw std::runtime_error("Expected assignment");
-                    }
-                    parser.read_next_token();
-                    break;
-                case TokenType::REBIND:
-                    parser.read_next_token();
-                    break;
-                default:
-                    throw std::runtime_error("Expected declaration or assignment");
-            }
-            (scope.*scope_update)(name, parse_expression(parser, scope, 255));
+            return;
+        }
+        parse_struct(parser);
+        if (parser.next_token.type == TokenType::ARROW) {
+            parser.read_next_token();
+            parse_type(parser);
+        }
+    }
+
+    void parse_identifier_things(Parser& parser, Scope& scope) {
+        assert(parser.next_token.type == TokenType::IDENTIFIER);
+        auto name = parser.next_token.value;  // TODO: check is not a keyword
+        parser.read_next_token();
+        auto scope_update = &Scope::update;
+        switch (parser.next_token.type) {
+            case TokenType::DECLARE_AUTO:
+                parser.read_next_token();
+                scope_update = &Scope::declare;
+                break;
+            case TokenType::DECLARE_TYPE:
+                parser.read_next_token();
+                parse_type(parser);  // TODO: handle different types
+                scope_update = &Scope::declare;
+                if (parser.next_token.type != TokenType::REBIND) {
+                    throw std::runtime_error("Expected assignment");
+                }
+                parser.read_next_token();
+                break;
+            case TokenType::REBIND:
+                parser.read_next_token();
+                break;
+            default:
+                throw std::runtime_error("Expected declaration or assignment");
+        }
+        (scope.*scope_update)(name, parse_expression(parser, scope, 255));
     }
 
     void parse_statement(Parser& parser, Scope& scope, const LoopState& loop, const grlang::node::Node::Ptr& stop) {
