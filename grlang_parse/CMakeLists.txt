@@ -1,7 +1,7 @@
 add_library(grlang.parse)
 add_library(grlang::parse ALIAS grlang.parse)
 
-target_compile_features(grlang.parse PUBLIC cxx_std_20)
+target_compile_features(grlang.parse PUBLIC cxx_std_23)
 
 target_sources(grlang.parse PRIVATE "src/parse.cpp" "src/token.cpp")
 target_sources(

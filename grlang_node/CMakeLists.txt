@@ -1,7 +1,7 @@
 add_library(grlang.node)
 add_library(grlang::node ALIAS grlang.node)
 
-target_compile_features(grlang.node PUBLIC cxx_std_20)
+target_compile_features(grlang.node PUBLIC cxx_std_23)
 
 target_sources(grlang.node PRIVATE "src/node.cpp")
 target_sources(
