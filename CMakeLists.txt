@@ -6,3 +6,4 @@ enable_testing()
 
 add_subdirectory(grlang_node)
 add_subdirectory(grlang_parse)
+add_subdirectory(grlang_eval)

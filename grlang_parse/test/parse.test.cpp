@@ -56,8 +56,9 @@ TEST_CASE(test_arithmetic_peep) {
     assert(node->inputs.at(1)->type == grlang::node::Node::Type::DATA_OP_ADD);
 
     auto add = node->inputs.at(1);
-    assert(add->inputs.at(0)->type == grlang::node::Node::Type::DATA_TERM);
-    assert(static_cast<grlang::node::ValueNode&>(*add->inputs.at(0)).value.clazz == grlang::node::Value::Class::VARIABLE);
+    assert(add->inputs.at(0)->type == grlang::node::Node::Type::DATA_PROJECT);
+    assert(add->inputs.at(0)->value == 1);
+    assert(add->inputs.at(0)->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_START);
     assert(add->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM);
     assert(get_value_int(*add->inputs.at(1)) == 5);
 }
@@ -158,7 +159,8 @@ TEST_CASE(test_while) {
     assert(arg_phi->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_REGION);
     assert(arg_phi->inputs.at(0) == reg);
 
-    assert(arg_phi->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM);
+    assert(arg_phi->inputs.at(1)->type == grlang::node::Node::Type::DATA_PROJECT);
+    assert(arg_phi->inputs.at(1)->value == 1);
     assert(arg_phi->inputs.at(2)->type == grlang::node::Node::Type::DATA_TERM);
     assert(get_value_int(*arg_phi->inputs.at(2)) == 6);
 }
@@ -180,7 +182,8 @@ TEST_CASE(test_while_break) {
     auto arg_phi = node->inputs.at(1);
     assert(get_value_int(*arg_phi->inputs.at(1)) == 5);
     assert(arg_phi->inputs.at(2)->type == grlang::node::Node::Type::DATA_PHI);
-    assert(arg_phi->inputs.at(2)->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM);
+    assert(arg_phi->inputs.at(2)->inputs.at(1)->type == grlang::node::Node::Type::DATA_PROJECT);
+    assert(arg_phi->inputs.at(2)->inputs.at(1)->value == 1);
     assert(get_value_int(*arg_phi->inputs.at(2)->inputs.at(2)) == 6);
 }
 
@@ -206,7 +209,8 @@ TEST_CASE(test_while_continue) {
 
     assert(node->inputs.at(1)->type == grlang::node::Node::Type::DATA_PHI);
     auto arg_phi = node->inputs.at(1);
-    assert(arg_phi->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM);
+    assert(arg_phi->inputs.at(1)->type == grlang::node::Node::Type::DATA_PROJECT);
+    assert(arg_phi->inputs.at(1)->value == 1);
     assert(arg_phi->inputs.at(2)->type == grlang::node::Node::Type::DATA_PHI);
     assert(get_value_int(*arg_phi->inputs.at(2)->inputs.at(1)) == 5);
     assert(get_value_int(*arg_phi->inputs.at(2)->inputs.at(2)) == 6);

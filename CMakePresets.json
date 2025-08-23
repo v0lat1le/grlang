@@ -6,8 +6,9 @@
             "hidden": true,
             "binaryDir": "${sourceDir}/build/${presetName}",
             "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
                 "GRLANG_PARSE_BUILD_TESTS": "ON",
-                "CMAKE_BUILD_TYPE": "Debug"
+                "GRLANG_EVAL_BUILD_TESTS": "ON"
             }
         },
         {
@@ -21,7 +22,7 @@
             "name": "debug_msvc",
             "inherits": "debug_base",
             "cacheVariables": {
-                "CMAKE_CXX_FLAGS": "/W4"
+                "CMAKE_CXX_FLAGS": "/EHsc /W4"
             }
         }
     ],

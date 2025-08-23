@@ -70,33 +70,6 @@ namespace {
         }
     }
 
-    int (*op_func(grlang::node::Node::Type type))(int, int) {
-        switch (type) {
-            case grlang::node::Node::Type::DATA_OP_MUL:
-                return [](int a, int b)->int { return a*b; };
-            case grlang::node::Node::Type::DATA_OP_DIV:
-                return [](int a, int b)->int { return a/b; };
-            case grlang::node::Node::Type::DATA_OP_ADD:
-                return [](int a, int b)->int { return a+b; };
-            case grlang::node::Node::Type::DATA_OP_SUB:
-                return [](int a, int b)->int { return a-b; };
-            case grlang::node::Node::Type::DATA_OP_GT:
-                return [](int a, int b)->int { return a>b ? 1 : 0; };
-            case grlang::node::Node::Type::DATA_OP_GEQ:
-                return [](int a, int b)->int { return a>=b ? 1 : 0; };
-            case grlang::node::Node::Type::DATA_OP_LT:
-                return [](int a, int b)->int { return a<b ? 1 : 0; };
-            case grlang::node::Node::Type::DATA_OP_LEQ:
-                return [](int a, int b)->int { return a<=b ? 1 : 0; };
-            case grlang::node::Node::Type::DATA_OP_EQ:
-                return [](int a, int b)->int { return a==b ? 1 : 0; };
-            case grlang::node::Node::Type::DATA_OP_NEQ:
-                return [](int a, int b)->int { return a!=b ? 1 : 0; };
-            default:
-                throw std::runtime_error("bad op");
-        }
-    }
-
     grlang::node::Node::Ptr make_node(grlang::node::Node::Type type, std::uint8_t value, std::initializer_list<grlang::node::Node::Ptr> inputs) {
         return std::make_shared<grlang::node::Node>(type, value, inputs);
     };
@@ -119,8 +92,7 @@ namespace {
     }
 
     grlang::node::Node::Ptr peephole(grlang::node::Node::Ptr node) {
-        if (node->type > grlang::node::Node::Type::DATA_OP_BEGIN && node->type < grlang::node::Node::Type::DATA_OP_END
-                && is_const(*node->inputs.at(0)) && is_const(*node->inputs.at(1))) {
+        if (grlang::node::is_binary_op(*node) && is_const(*node->inputs.at(0)) && is_const(*node->inputs.at(1))) {
             return make_value_node(op_func(node->type)(get_value_int(*node->inputs.at(0)), get_value_int(*node->inputs.at(1))));
         }
         switch (node->type) {
@@ -509,7 +481,7 @@ grlang::node::Node::Ptr grlang::parse::parse(std::string_view code) {
     Scope scope;
     scope.stack.emplace_back();
     scope.control = make_node(grlang::node::Node::Type::CONTROL_START);
-    scope.declare("arg", make_value_node(grlang::node::Value::Type::INTEGER));
+    scope.declare("arg", make_node(grlang::node::Node::Type::DATA_PROJECT, 1, {scope.control}));
     auto stop = make_node(grlang::node::Node::Type::CONTROL_STOP);
     parse_block(parser, scope, {}, stop);
     return stop;
