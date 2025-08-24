@@ -1,9 +1,6 @@
 # GrLang TODO
 
 ### To Do
-- [ ] functions
-- [ ] structs, more types
-- [ ] graph eval
 - [ ] memory, arrays, strings
 - [ ] debug print
 - [ ] cleanup graph cycles
@@ -12,3 +9,5 @@
 - [ ] optimizations
 
 ### In Progress
+- [ ] functions
+- [ ] structs, more types

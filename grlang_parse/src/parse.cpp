@@ -87,10 +87,6 @@ namespace {
         return std::make_shared<grlang::node::ValueNode>(grlang::node::Node(grlang::node::Node::Type::DATA_TERM, 0, {}), grlang::node::Value(value));
     }
 
-    grlang::node::Node::Ptr make_value_node(grlang::node::Value::Type type) {
-        return std::make_shared<grlang::node::ValueNode>(grlang::node::Node(grlang::node::Node::Type::DATA_TERM, 0, {}), grlang::node::Value(type));
-    }
-
     grlang::node::Node::Ptr peephole(grlang::node::Node::Ptr node) {
         if (grlang::node::is_binary_op(*node) && is_const(*node->inputs.at(0)) && is_const(*node->inputs.at(1))) {
             return make_value_node(op_func(node->type)(get_value_int(*node->inputs.at(0)), get_value_int(*node->inputs.at(1))));
@@ -380,7 +376,7 @@ namespace {
             if (parser.next_token.type != TokenType::IDENTIFIER) {
                 throw std::runtime_error("expected identifier");
             }
-            auto name = parser.next_token.value;  // TODO: check is not a keyword
+            // auto name = parser.next_token.value;  // TODO: check is not a keyword
             parser.read_next_token();
             if (parser.next_token.type != TokenType::DECLARE_TYPE) {
                 throw std::runtime_error("expected :");
