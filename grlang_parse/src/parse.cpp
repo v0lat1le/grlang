@@ -245,7 +245,7 @@ namespace {
         }
     };
 
-    grlang::node::Node::Ptr parse_expression(Parser& parser, const Scope& scope, std::uint8_t prev_precedence) {
+    grlang::node::Node::Ptr parse_expression(Parser& parser, const Scope& scope, std::uint8_t prev_precedence=255) {
         grlang::node::Node::Ptr result;
         switch (parser.next_token.type) {
             case TokenType::OPERATOR_MINUS: {
@@ -262,16 +262,25 @@ namespace {
             }
             case TokenType::OPEN_ROUND:
                 parser.read_next_token();
-                result = parse_expression(parser, scope, 255);
+                result = parse_expression(parser, scope);
                 if (parser.next_token.type != TokenType::CLOSE_ROUND) {
                     throw std::runtime_error("Expected )");
                 }
                 parser.read_next_token();
                 break;
-            
             case TokenType::IDENTIFIER:
                 result = scope.lookup(parser.next_token.value);
                 parser.read_next_token();
+                if (parser.next_token.type != TokenType::OPEN_ROUND) {
+                    break;
+                }
+                parser.read_next_token();
+                result = make_node(grlang::node::Node::Type::DATA_CALL, {result});
+                while (parser.next_token.type != TokenType::CLOSE_ROUND) {
+                    result->inputs.push_back(parse_expression(parser, scope));
+                } while (parser.next_token.type != TokenType::CLOSE_ROUND);
+                parser.read_next_token();
+                result = peephole(result);  // TODO: type check
                 break;
             case TokenType::LITERAL_INT:
                 result = make_value_node(svtoi(parser.next_token.value));
@@ -369,25 +378,25 @@ namespace {
 
     void parse_type(Parser& parser);
 
-    void parse_struct(Parser& parser) {
+    std::vector<std::string_view> parse_struct_type(Parser& parser) {
         assert(parser.next_token.type == TokenType::OPEN_CURLY);
-        do {
-            parser.read_next_token();
+        parser.read_next_token();
+        std::vector<std::string_view> result;
+        while (parser.next_token.type != TokenType::CLOSE_CURLY) {
             if (parser.next_token.type != TokenType::IDENTIFIER) {
                 throw std::runtime_error("expected identifier");
             }
-            // auto name = parser.next_token.value;  // TODO: check is not a keyword
+            auto name = parser.next_token.value;  // TODO: check is not a keyword
+            result.push_back(name);
             parser.read_next_token();
             if (parser.next_token.type != TokenType::DECLARE_TYPE) {
                 throw std::runtime_error("expected :");
             }
             parser.read_next_token();
             parse_type(parser);
-        } while (parser.next_token.type == TokenType::COMMA);
-        if (parser.next_token.type != TokenType::CLOSE_CURLY) {
-            throw std::runtime_error("expected }");
         }
         parser.read_next_token();
+        return result;
     }
 
     void parse_type(Parser& parser)
@@ -398,11 +407,35 @@ namespace {
             parser.read_next_token();
             return;
         }
-        parse_struct(parser);
-        if (parser.next_token.type == TokenType::ARROW) {
-            parser.read_next_token();
-            parse_type(parser);
+        parse_struct_type(parser);
+    }
+
+    void parse_function(const std::string_view& name, Parser& parser, Scope& scope) {
+        assert(parser.next_token.type == TokenType::OPEN_CURLY);
+        auto params = parse_struct_type(parser);
+        if (parser.next_token.type != TokenType::ARROW) {
+            throw std::runtime_error("Expected ->");
         }
+        parser.read_next_token();
+        parse_type(parser);  // TODO do something with return type
+        if (parser.next_token.type != TokenType::OPEN_CURLY) {
+            throw std::runtime_error("Expected {");
+        }
+        parser.read_next_token();
+        auto func_start = make_node(grlang::node::Node::Type::CONTROL_START);
+        scope.stack.front()[name] = func_start;  // HACK
+        Scope func_scope;
+        func_scope.stack.push_back(scope.stack.front());
+        func_scope.stack.emplace_back();
+        for (std::size_t i=0; i<params.size(); ++i) {
+            func_scope.declare(params.at(i), make_node(grlang::node::Node::Type::DATA_PROJECT, i+1, {func_start}));
+        }
+        auto func_stop = make_node(grlang::node::Node::Type::CONTROL_STOP);
+        parse_block(parser, func_scope, {nullptr, nullptr}, func_stop);
+        if (parser.next_token.type != TokenType::CLOSE_CURLY) {
+            throw std::runtime_error("Expected }");
+        }
+        parser.read_next_token();
     }
 
     void parse_identifier_things(Parser& parser, Scope& scope) {
@@ -430,7 +463,11 @@ namespace {
             default:
                 throw std::runtime_error("Expected declaration or assignment");
         }
-        (scope.*scope_update)(name, parse_expression(parser, scope, 255));
+        if (parser.next_token.type == TokenType::OPEN_CURLY) {
+            parse_function(name, parser, scope);
+        } else {
+            (scope.*scope_update)(name, parse_expression(parser, scope));
+        }
     }
 
     void parse_statement(Parser& parser, Scope& scope, const LoopState& loop, const grlang::node::Node::Ptr& stop) {
