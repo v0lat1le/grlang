@@ -57,6 +57,19 @@ TEST_CASE(test_loops) {
     assert(grlang::eval::eval(graph, 10) == 55);
 }
 
+TEST_CASE(test_functions) {
+    // auto graph = grlang::parse::parse("f:= (x:int y:int) -> int { return x*y } return f(arg+1 13)");
+    // assert(grlang::eval::eval(graph, -1) == 0);
+    // assert(grlang::eval::eval(graph, 0) == 13);
+    // assert(grlang::eval::eval(graph, 2) == 26);
+
+    auto graph = grlang::parse::parse("f:= (n:int) -> int { if n==0 return 0 if n==1 return 1 return f(n-1)+f(n-2) } return f(arg)");
+    assert(grlang::eval::eval(graph, 0) == 0);
+    assert(grlang::eval::eval(graph, 1) == 1);
+    assert(grlang::eval::eval(graph, 5) == 5);
+    assert(grlang::eval::eval(graph, 10) == 55);
+}
+
 int main() {
     for (auto [test, name]: registered_tests) {
         std::cout << "running " << name << "..." << std::endl;

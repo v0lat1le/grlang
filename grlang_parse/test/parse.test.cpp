@@ -64,7 +64,7 @@ TEST_CASE(test_arithmetic_peep) {
 }
 
 TEST_CASE(test_declarations_peep) {
-    auto node = grlang::parse::parse("a:int=13 b:int=7 return a-b");
+    auto node = grlang::parse::parse("a:int=13 b:=7 a=9 return a-b");
     assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
     assert(node->inputs.size() == 1);
 
@@ -72,7 +72,7 @@ TEST_CASE(test_declarations_peep) {
     assert(node->type == grlang::node::Node::Type::CONTROL_RETURN);
     assert(node->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_START);
     assert(node->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM);
-    assert(get_value_int(*node->inputs.at(1)) == 6);
+    assert(get_value_int(*node->inputs.at(1)) == 2);
 }
 
 TEST_CASE(test_scopes) {
@@ -87,12 +87,22 @@ TEST_CASE(test_scopes) {
     assert(get_value_int(*node->inputs.at(1)) == 7);
 }
 
-TEST_CASE(test_struct) {
-    auto node = grlang::parse::parse("a:{x:int,y:{z:int}}=0 return a");
-}
-
 TEST_CASE(test_function) {
-    auto node = grlang::parse::parse("a:{x:int}->int=0 return a");
+    auto node = grlang::parse::parse("f:= (x:int y:int) -> int { return x*y } return f(arg+1 13)");
+    auto ret = node->inputs.at(0);
+    assert(ret->type == grlang::node::Node::Type::CONTROL_RETURN);
+    assert(ret->inputs.at(1)->type == grlang::node::Node::Type::DATA_CALL);
+    assert(ret->inputs.at(1)->inputs.size() == 3);
+    assert(get_value_int(*ret->inputs.at(1)->inputs.at(0)) == 0x0FEFEFE0);
+    assert(ret->inputs.at(1)->inputs.at(1)->type == grlang::node::Node::Type::DATA_OP_ADD);
+    assert(ret->inputs.at(1)->inputs.at(2)->type == grlang::node::Node::Type::DATA_TERM);
+    auto func_ptr = ret->inputs.at(1)->inputs.at(0);
+    assert(func_ptr->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_STOP);
+    assert(func_ptr->inputs.at(0)->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_RETURN);
+    assert(func_ptr->inputs.at(0)->inputs.at(0)->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_START);
+    assert(func_ptr->inputs.at(0)->inputs.at(0)->inputs.at(1)->type == grlang::node::Node::Type::DATA_OP_MUL);
+
+    node = grlang::parse::parse("f:= (n:int) -> int { if n==0 return 0 if n==1 return 1 return f(n-1)+f(n-2) } return f(arg)");
 }
 
 TEST_CASE(test_if_else) {

@@ -240,12 +240,13 @@ namespace {
             read_next_token();
         }
 
-        void read_next_token() {
+        const grlang::parse::detail::Token& read_next_token() {
             next_token = grlang::parse::detail::read_token(code);
+            return next_token;
         }
     };
 
-    grlang::node::Node::Ptr parse_expression(Parser& parser, const Scope& scope, std::uint8_t prev_precedence) {
+    grlang::node::Node::Ptr parse_expression(Parser& parser, const Scope& scope, std::uint8_t prev_precedence=255) {
         grlang::node::Node::Ptr result;
         switch (parser.next_token.type) {
             case TokenType::OPERATOR_MINUS: {
@@ -262,16 +263,25 @@ namespace {
             }
             case TokenType::OPEN_ROUND:
                 parser.read_next_token();
-                result = parse_expression(parser, scope, 255);
+                result = parse_expression(parser, scope);
                 if (parser.next_token.type != TokenType::CLOSE_ROUND) {
                     throw std::runtime_error("Expected )");
                 }
                 parser.read_next_token();
                 break;
-            
             case TokenType::IDENTIFIER:
                 result = scope.lookup(parser.next_token.value);
                 parser.read_next_token();
+                if (parser.next_token.type != TokenType::OPEN_ROUND) {
+                    break;
+                }
+                parser.read_next_token();
+                result = make_node(grlang::node::Node::Type::DATA_CALL, {result});
+                while (parser.next_token.type != TokenType::CLOSE_ROUND) {
+                    result->inputs.push_back(parse_expression(parser, scope));
+                } while (parser.next_token.type != TokenType::CLOSE_ROUND);
+                parser.read_next_token();
+                result = peephole(result);  // TODO: type check
                 break;
             case TokenType::LITERAL_INT:
                 result = make_value_node(svtoi(parser.next_token.value));
@@ -292,6 +302,87 @@ namespace {
         }
 
         return result;
+    }
+
+    void parse_type(Parser& parser)
+    {
+        if (parser.next_token.type == TokenType::OPEN_CURLY) {
+            // TODO: parse structure type
+        } else if (parser.next_token.type == TokenType::OPEN_ROUND) {
+            // TODO: parse function type
+        } else {
+            static std::unordered_set<std::string_view> builtin_types = {"int", "struct", "funct"};
+            assert(builtin_types.contains(parser.next_token.value));
+            parser.read_next_token();
+            return;
+        }
+    }
+
+    std::vector<std::string_view> parse_named_type_list(Parser& parser) {
+        std::vector<std::string_view> result;
+        while (parser.next_token.type == TokenType::IDENTIFIER) {
+            auto name = parser.next_token.value;  // TODO: check is not a keyword
+            result.push_back(name);
+            parser.read_next_token();
+            if (parser.next_token.type != TokenType::DECLARE_TYPE) {
+                throw std::runtime_error("expected :");
+            }
+            parser.read_next_token();
+            parse_type(parser);
+        }
+        return result;
+    }
+
+    void parse_block(Parser& parser, Scope& scope, const LoopState& loop, const grlang::node::Node::Ptr& stop);
+
+    grlang::node::Node::Ptr parse_function_expression(const std::string_view& name, Parser& parser, Scope& scope) {
+        assert(parser.next_token.type == TokenType::OPEN_ROUND);
+        parser.read_next_token();
+        auto params = parse_named_type_list(parser);
+        if (parser.next_token.type != TokenType::CLOSE_ROUND) {
+            throw std::runtime_error("Expected )");
+        }
+        parser.read_next_token();
+        if (parser.next_token.type != TokenType::ARROW) {
+            throw std::runtime_error("Expected ->");
+        }
+        parser.read_next_token();
+        parse_type(parser);  // TODO do something with return type
+        if (parser.next_token.type != TokenType::OPEN_CURLY) {
+            throw std::runtime_error("Expected {");
+        }
+        parser.read_next_token();
+
+        auto func_stop = make_node(grlang::node::Node::Type::CONTROL_STOP);
+        auto func_ptr = make_value_node(0x0FEFEFE0);  // TODO: Add sunction pointer type
+        func_ptr->inputs.push_back(func_stop);
+
+        Scope func_scope;
+        func_scope.stack.push_back(scope.stack.front());
+        func_scope.stack.emplace_back();
+        func_scope.declare(name, func_ptr);
+        func_scope.control = make_node(grlang::node::Node::Type::CONTROL_START);
+        for (std::size_t i=0; i<params.size(); ++i) {
+            func_scope.declare(params.at(i), make_node(grlang::node::Node::Type::DATA_PROJECT, static_cast<uint8_t>(i+1), {func_scope.control}));
+        }
+
+        parse_block(parser, func_scope, {nullptr, nullptr}, func_stop);
+        if (parser.next_token.type != TokenType::CLOSE_CURLY) {
+            throw std::runtime_error("Expected }");
+        }
+        parser.read_next_token();
+        return func_ptr;
+    }
+
+    grlang::node::Node::Ptr parse_bind_expression(const std::string_view& name, Parser& parser, Scope& scope) {
+        if (parser.next_token.type == TokenType::OPEN_ROUND) {
+            Parser tmp_parser = parser;
+            if (tmp_parser.read_next_token().type == TokenType::IDENTIFIER &&
+                    tmp_parser.read_next_token().type == TokenType::DECLARE_TYPE) {
+                return parse_function_expression(name, parser, scope);
+            }
+        }
+        return parse_expression(parser, scope);
     }
 
     void parse_statement(Parser &parser, Scope &scope, const LoopState &loop, const grlang::node::Node::Ptr &stop);
@@ -367,44 +458,6 @@ namespace {
         }
     }
 
-    void parse_type(Parser& parser);
-
-    void parse_struct(Parser& parser) {
-        assert(parser.next_token.type == TokenType::OPEN_CURLY);
-        do {
-            parser.read_next_token();
-            if (parser.next_token.type != TokenType::IDENTIFIER) {
-                throw std::runtime_error("expected identifier");
-            }
-            // auto name = parser.next_token.value;  // TODO: check is not a keyword
-            parser.read_next_token();
-            if (parser.next_token.type != TokenType::DECLARE_TYPE) {
-                throw std::runtime_error("expected :");
-            }
-            parser.read_next_token();
-            parse_type(parser);
-        } while (parser.next_token.type == TokenType::COMMA);
-        if (parser.next_token.type != TokenType::CLOSE_CURLY) {
-            throw std::runtime_error("expected }");
-        }
-        parser.read_next_token();
-    }
-
-    void parse_type(Parser& parser)
-    {
-        if (parser.next_token.type != TokenType::OPEN_CURLY) {
-            static std::unordered_set<std::string_view> builtin_types = {"int", "struct", "funct"};
-            assert(builtin_types.contains(parser.next_token.value));
-            parser.read_next_token();
-            return;
-        }
-        parse_struct(parser);
-        if (parser.next_token.type == TokenType::ARROW) {
-            parser.read_next_token();
-            parse_type(parser);
-        }
-    }
-
     void parse_identifier_things(Parser& parser, Scope& scope) {
         assert(parser.next_token.type == TokenType::IDENTIFIER);
         auto name = parser.next_token.value;  // TODO: check is not a keyword
@@ -430,7 +483,7 @@ namespace {
             default:
                 throw std::runtime_error("Expected declaration or assignment");
         }
-        (scope.*scope_update)(name, parse_expression(parser, scope, 255));
+        (scope.*scope_update)(name, parse_bind_expression(name, parser, scope));
     }
 
     void parse_statement(Parser& parser, Scope& scope, const LoopState& loop, const grlang::node::Node::Ptr& stop) {
@@ -453,6 +506,7 @@ namespace {
                 parser.read_next_token();
                 auto result = make_peep_node(grlang::node::Node::Type::CONTROL_RETURN, {scope.control, parse_expression(parser, scope, 255)});
                 stop->inputs.push_back(result);
+                scope.control = make_node(grlang::node::Node::Type::CONTROL_DEAD);
             } else if (parser.next_token.value == "if") {
                 parse_ifelse(parser, scope, loop, stop);
             } else if (parser.next_token.value == "while") {

@@ -20,6 +20,7 @@ namespace grlang::node {
             DATA_TERM,
             DATA_PROJECT,
             DATA_PHI,
+            DATA_CALL,
 
             DATA_OP_NEG,
             DATA_OP_NOT,
@@ -84,7 +85,7 @@ namespace grlang::node {
         return node.type > Node::Type::DATA_OP_BEGIN && node.type <Node::Type::DATA_OP_END;
     }
     inline bool is_control(const Node& node) {
-        return node.type < Node::Type::DATA_TERM;
+        return node.type <= Node::Type::CONTROL_DEAD;
     }
     inline bool is_data(const Node& node) {
         return !is_control(node);

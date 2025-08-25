@@ -48,9 +48,12 @@ namespace {
                 assert(node->value == 1);
                 return eval_expression(node->inputs.at(0), cache);
             case grlang::node::Node::Type::DATA_OP_NEG:
-              return -eval_expression(node->inputs.at(0), cache);
+                return -eval_expression(node->inputs.at(0), cache);
             case grlang::node::Node::Type::DATA_OP_NOT:
-              return eval_expression(node->inputs.at(0), cache) == 1 ? 0 : 1;
+                return eval_expression(node->inputs.at(0), cache) == 1 ? 0 : 1;
+            case grlang::node::Node::Type::DATA_CALL:
+                assert(node->inputs.size() == 2);
+                return grlang::eval::eval(node->inputs.at(0)->inputs.at(0), eval_expression(node->inputs.at(1), cache));
             default:
                 throw std::runtime_error("unknown node type");
         }
@@ -76,6 +79,7 @@ namespace {
                 inv_ctl[node->inputs.at(2).get()].push_back(node);
                 break;
             default:
+                break;
         }
         for (auto &child : node->inputs) {
             if (child) {
