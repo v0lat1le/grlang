@@ -437,6 +437,7 @@ namespace {
            throw std::runtime_error("break outside of a loop!");
         }
         loop.break_->merge(scope, *loop.break_);
+        scope.control = make_node(grlang::node::Node::Type::CONTROL_DEAD);
     }
 
     void parse_continue(Parser& parser, Scope& scope, const LoopState& loop) {
@@ -450,6 +451,7 @@ namespace {
         } else {
             loop.continue_->merge(*loop.continue_, scope);
         }
+        scope.control = make_node(grlang::node::Node::Type::CONTROL_DEAD);
     }
 
     void parse_block(Parser& parser, Scope& scope, const LoopState& loop, const grlang::node::Node::Ptr& stop) {
