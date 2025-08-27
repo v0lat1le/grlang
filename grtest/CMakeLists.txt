@@ -12,3 +12,5 @@ set_target_properties(
     grtest
     PROPERTIES VERIFY_INTERFACE_HEADER_SETS ON EXPORT_NAME node
 )
+
+include("cmake/GrTest.cmake")
