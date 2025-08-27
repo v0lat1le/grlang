@@ -6,4 +6,7 @@ enable_testing()
 
 add_subdirectory(grlang_node)
 add_subdirectory(grlang_parse)
-add_subdirectory(grlang_eval)
+add_subdirectory(grlang_compile)
+if(GRLANG_EVAL_BUILD OR GRLANG_EVAL_BUILD_TESTS)
+    add_subdirectory(grlang_eval)
+endif()

@@ -21,9 +21,11 @@ expression:
     '(' expression ')'
     | ('-' | '!') expression
     | expression ('+' | '==') expression
+    | function
     | IDENTIFIER
     | INTEGER_LITERAL
 ;
+function: '(' (IDENTIFIER ':' type)* ')' -> type statement;
 type : 'int';
 IDENTIFIER : NON_DIGIT (NON_DIGIT | DIGIT)*;
 INTEGER_LITERAL : DIGIT+;

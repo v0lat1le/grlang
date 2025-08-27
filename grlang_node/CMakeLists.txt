@@ -16,3 +16,9 @@ set_target_properties(
     grlang.node
     PROPERTIES VERIFY_INTERFACE_HEADER_SETS ON EXPORT_NAME node
 )
+
+if(GRLANG_NODE_BUILD_TESTS)
+    add_executable(grlang_node_test "test/node.test.cpp")
+    target_link_libraries(grlang_node_test PRIVATE grlang.node grlang::node)
+    add_test(NAME grlang_node_test COMMAND grlang_node_test)
+endif()

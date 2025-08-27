@@ -45,7 +45,7 @@ namespace {
                 throw std::runtime_error("unknown node value");
             case grlang::node::Node::Type::DATA_PROJECT:
                 assert(node->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_START);
-                assert(node->value == 1);
+                assert(node->value == 1);  // TODO: support different arities
                 return eval_expression(node->inputs.at(0), cache);
             case grlang::node::Node::Type::DATA_OP_NEG:
                 return -eval_expression(node->inputs.at(0), cache);

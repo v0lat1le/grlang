@@ -1,14 +1,21 @@
 # GrLang TODO
 
 ### To Do
-- [ ] better parsering error reporting
-- [ ] optional "," and ";"
 - [ ] structs, more types
 - [ ] memory, arrays, strings
-- [ ] debug print
+- [ ] pretty print graph/IR
+- [ ] eval n-ary functions
+- [ ] better parsing errors
+- [ ] optional(?) "," and ";"
 - [ ] cleanup graph cycles
 - [ ] lazy phi
 - [ ] codegen
+  - [ ] llvm IR
+  - [ ] WASM
+  - [ ] x86_64
+  - [ ] aarch64
 - [ ] optimizations
 
 ### In Progress
+- [ ] codegen
+  - [ ] llvm IR

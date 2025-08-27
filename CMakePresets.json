@@ -7,8 +7,10 @@
             "binaryDir": "${sourceDir}/build/${presetName}",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
+                "GRLANG_NODE_BUILD_TESTS": "ON",
                 "GRLANG_PARSE_BUILD_TESTS": "ON",
-                "GRLANG_EVAL_BUILD_TESTS": "ON"
+                "GRLANG_EVAL_BUILD_TESTS": "ON",
+                "GRLANG_COMPILE_BUILD_TESTS": "ON"
             }
         },
         {
