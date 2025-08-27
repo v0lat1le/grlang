@@ -1,17 +1,7 @@
-#include <cassert>
-#include <iostream>
-
+#include "grtest.h"
 #include "grlang/parse.h"
 #include "grlang/eval.h"
 
-
-static std::vector<std::pair<void(*)(), const char*>> registered_tests;
-struct test_register {
-    test_register(void(*test)(), const char* name) {
-        registered_tests.emplace_back(test, name);
-    }
-};
-#define TEST_CASE(name) void name(); test_register test_register_##name(name, #name); void name()
 
 int run_in_main(std::string code, int arg) {
     std::string main = "main:= (arg:int)->int {\n" + code + "\n}";
@@ -61,12 +51,4 @@ TEST_CASE(test_functions) {
     assert(grlang::eval::eval_call(fib, 1) == 1);
     assert(grlang::eval::eval_call(fib, 5) == 5);
     assert(grlang::eval::eval_call(fib, 10) == 55);
-}
-
-int main() {
-    for (auto [test, name]: registered_tests) {
-        std::cout << "running " << name << "..." << std::endl;
-        test();
-    }
-    return 0;
 }

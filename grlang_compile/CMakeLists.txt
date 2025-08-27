@@ -21,6 +21,6 @@ target_link_libraries(grlang.compile PUBLIC grlang::node)
 
 if(GRLANG_COMPILE_BUILD_TESTS)
     add_executable(grlang_compile_test "test/compile.test.cpp")
-    target_link_libraries(grlang_compile_test PRIVATE grlang.compile grlang::node grlang::parse)
+    target_link_libraries(grlang_compile_test PRIVATE grlang::compile grlang::parse grlang::node grtest)
     add_test(NAME grlang_compile_test COMMAND grlang_compile_test)
 endif()

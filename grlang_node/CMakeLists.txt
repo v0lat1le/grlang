@@ -19,6 +19,6 @@ set_target_properties(
 
 if(GRLANG_NODE_BUILD_TESTS)
     add_executable(grlang_node_test "test/node.test.cpp")
-    target_link_libraries(grlang_node_test PRIVATE grlang.node grlang::node)
+    target_link_libraries(grlang_node_test PRIVATE grlang::node grtest)
     add_test(NAME grlang_node_test COMMAND grlang_node_test)
 endif()

@@ -1,17 +1,5 @@
-#include <cassert>
-#include <iostream>
-#include <vector>
-
+#include "grtest.h"
 #include "grlang/parse.h"
-
-
-static std::vector<std::pair<void(*)(), const char*>> registered_tests;
-struct test_register {
-    test_register(void(*test)(), const char* name) {
-        registered_tests.emplace_back(test, name);
-    }
-};
-#define TEST_CASE(name) void name(); test_register test_register_##name(name, #name); void name()
 
 grlang::node::Node::Ptr run_in_main(std::string code) {
     std::string main = "main:= (arg:int)->int {\n" + code + "\n}";
@@ -227,12 +215,4 @@ TEST_CASE(test_while_continue) {
     assert(arg_phi->inputs.at(1)->type == grlang::node::Node::Type::DATA_PROJECT);
     assert(arg_phi->inputs.at(1)->value == 1);
     assert(get_value_int(*arg_phi->inputs.at(2)) == 5);
-}
-
-int main() {
-    for (auto [test, name]: registered_tests) {
-        std::cout << "running " << name << "..." << std::endl;
-        test();
-    }
-    return 0;
 }
