@@ -13,8 +13,14 @@ struct test_register {
 };
 #define TEST_CASE(name) void name(); test_register test_register_##name(name, #name); void name()
 
+grlang::node::Node::Ptr run_in_main(std::string code) {
+    std::string main = "main:= (arg:int)->int {\n" + code + "\n}";
+    auto exports = grlang::parse::parse_unit(main);
+    return exports.at("main")->inputs.at(0);
+}
+
 TEST_CASE(test_return) {
-    auto node = grlang::parse::parse("return 123");
+    auto node = run_in_main("return 123");
     assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
     assert(node->inputs.size() == 1);
 
@@ -26,7 +32,7 @@ TEST_CASE(test_return) {
 }
 
 TEST_CASE(test_arithmetic_peep) {
-    auto node = grlang::parse::parse("return 2*-3*4+36/6");
+    auto node = run_in_main("return 2*-3*4+36/6");
     assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
     assert(node->inputs.size() == 1);
 
@@ -36,7 +42,7 @@ TEST_CASE(test_arithmetic_peep) {
     assert(node->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM);
     assert(get_value_int(*node->inputs.at(1)) == -18);
 
-    node = grlang::parse::parse("return (3-1)*2*-(-5+3)");
+    node = run_in_main("return (3-1)*2*-(-5+3)");
     assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
     assert(node->inputs.size() == 1);
 
@@ -46,7 +52,7 @@ TEST_CASE(test_arithmetic_peep) {
     assert(node->inputs.at(1)->type == grlang::node::Node::Type::DATA_TERM);
     assert(get_value_int(*node->inputs.at(1)) == 8);
 
-    node = grlang::parse::parse("return 2+arg+3");
+    node = run_in_main("return 2+arg+3");
     assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
     assert(node->inputs.size() == 1);
 
@@ -64,7 +70,7 @@ TEST_CASE(test_arithmetic_peep) {
 }
 
 TEST_CASE(test_declarations_peep) {
-    auto node = grlang::parse::parse("a:int=13 b:=7 a=9 return a-b");
+    auto node = run_in_main("a:int=13 b:=7 a=9 return a-b");
     assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
     assert(node->inputs.size() == 1);
 
@@ -76,7 +82,7 @@ TEST_CASE(test_declarations_peep) {
 }
 
 TEST_CASE(test_scopes) {
-    auto node = grlang::parse::parse("a:int = 13 { a = 7 } return a");
+    auto node = run_in_main("a:int = 13 { a = 7 } return a");
     assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
     assert(node->inputs.size() == 1);
 
@@ -88,7 +94,8 @@ TEST_CASE(test_scopes) {
 }
 
 TEST_CASE(test_function) {
-    auto node = grlang::parse::parse("f:= (x:int y:int) -> int { return x*y } return f(arg+1 13)");
+    auto exports = grlang::parse::parse_unit("f:= (x:int y:int) -> int { return x*y } main:= (arg:int) -> int { return f(arg+1 13) }");
+    auto node = exports.at("main")->inputs.at(0);
     auto ret = node->inputs.at(0);
     assert(ret->type == grlang::node::Node::Type::CONTROL_RETURN);
     assert(ret->inputs.at(1)->type == grlang::node::Node::Type::DATA_CALL);
@@ -102,11 +109,11 @@ TEST_CASE(test_function) {
     assert(func_ptr->inputs.at(0)->inputs.at(0)->inputs.at(0)->type == grlang::node::Node::Type::CONTROL_START);
     assert(func_ptr->inputs.at(0)->inputs.at(0)->inputs.at(1)->type == grlang::node::Node::Type::DATA_OP_MUL);
 
-    node = grlang::parse::parse("f:= (n:int) -> int { if n==0 return 0 if n==1 return 1 return f(n-1)+f(n-2) } return f(arg)");
+    grlang::parse::parse_unit("f:= (n:int) -> int { if n==0 return 0 if n==1 return 1 return f(n-1)+f(n-2) }");
 }
 
 TEST_CASE(test_if_else) {
-    auto node = grlang::parse::parse("a:int=0 if arg<0 a=-arg else a=2*arg return a");
+    auto node = run_in_main("a:int=0 if arg<0 a=-arg else a=2*arg return a");
     assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
     assert(node->inputs.size() == 1);
 
@@ -135,7 +142,7 @@ TEST_CASE(test_if_else) {
 }
 
 TEST_CASE(test_if_else_peep) {
-    auto node = grlang::parse::parse("a:int=13 if a<0 a=-a else a=2*a return a");
+    auto node = run_in_main("a:int=13 if a<0 a=-a else a=2*a return a");
     assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
     assert(node->inputs.size() == 1);
 
@@ -147,7 +154,7 @@ TEST_CASE(test_if_else_peep) {
 }
 
 TEST_CASE(test_while) {
-    auto node = grlang::parse::parse("while arg<10 arg=6 return arg");
+    auto node = run_in_main("while arg<10 arg=6 return arg");
     assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
     assert(node->inputs.size() == 1);
 
@@ -176,7 +183,7 @@ TEST_CASE(test_while) {
 }
 
 TEST_CASE(test_while_break) {
-    auto node = grlang::parse::parse("while arg<10 { arg=5 break arg=6 } return arg");
+    auto node = run_in_main("while arg<10 { arg=5 break arg=6 } return arg");
     assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
     assert(node->inputs.size() == 1);
 
@@ -199,7 +206,7 @@ TEST_CASE(test_while_break) {
 }
 
 TEST_CASE(test_while_continue) {
-    auto node = grlang::parse::parse("while arg<10 { arg=5 continue arg=6 } return arg");
+    auto node = run_in_main("while arg<10 { arg=5 continue arg=6 } return arg");
     assert(node->type == grlang::node::Node::Type::CONTROL_STOP);
     assert(node->inputs.size() == 1);
 

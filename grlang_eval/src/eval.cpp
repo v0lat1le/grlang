@@ -53,7 +53,7 @@ namespace {
                 return eval_expression(node->inputs.at(0), cache) == 1 ? 0 : 1;
             case grlang::node::Node::Type::DATA_CALL:
                 assert(node->inputs.size() == 2);
-                return grlang::eval::eval(node->inputs.at(0)->inputs.at(0), eval_expression(node->inputs.at(1), cache));
+                return grlang::eval::eval_call(node->inputs.at(0), eval_expression(node->inputs.at(1), cache));
             default:
                 throw std::runtime_error("unknown node type");
         }
@@ -124,14 +124,15 @@ namespace {
 }
 
 namespace grlang::eval {
-    int eval(const node::Node::Ptr& graph, int arg) {
-        assert(graph->type == node::Node::Type::CONTROL_STOP);
-        const node::Node::Ptr& start = find_start(graph);
+    int eval_call(const node::Node::Ptr& func, int arg) {
+        assert(func->type == node::Node::Type::DATA_TERM);  // TODO: func ptr type
+        assert(func->inputs.at(0)->type == node::Node::Type::CONTROL_STOP);
+        const node::Node::Ptr& start = find_start(func->inputs.at(0));
         Cache cache{{start.get(), arg}};
         NodeMap inv_ctl;
         NodeMap reg2phi;
         std::set<const grlang::node::Node*> visited;
-        build_node_maps(graph.get(), inv_ctl, reg2phi, visited);
+        build_node_maps(func->inputs.at(0).get(), inv_ctl, reg2phi, visited);
         return eval_graph(start.get(), cache, inv_ctl, reg2phi);
     }
 }

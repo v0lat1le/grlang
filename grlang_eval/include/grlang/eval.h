@@ -8,5 +8,5 @@
 
 
 namespace grlang::eval {
-    int eval(const node::Node::Ptr& graph, int arg);
+    int eval_call(const node::Node::Ptr& func, int arg);
 }

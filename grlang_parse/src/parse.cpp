@@ -1,6 +1,7 @@
 #include <stdexcept>
 #include <cstdint>
 #include <cassert>
+#include <format>
 #include <unordered_set>
 #include <unordered_map>
 
@@ -246,6 +247,13 @@ namespace {
         }
     };
 
+    const grlang::parse::detail::Token& expect_token(TokenType type, Parser& parser) {
+        if (parser.next_token.type != type) {
+            throw std::runtime_error(std::format("Expected {}, but got {}", static_cast<std::uint8_t>(type), parser.next_token.value));  // TODO: report line etc...
+        }
+        return parser.read_next_token();   
+    }
+
     grlang::node::Node::Ptr parse_expression(Parser& parser, const Scope& scope, std::uint8_t prev_precedence=255) {
         grlang::node::Node::Ptr result;
         switch (parser.next_token.type) {
@@ -264,10 +272,7 @@ namespace {
             case TokenType::OPEN_ROUND:
                 parser.read_next_token();
                 result = parse_expression(parser, scope);
-                if (parser.next_token.type != TokenType::CLOSE_ROUND) {
-                    throw std::runtime_error("Expected )");
-                }
-                parser.read_next_token();
+                expect_token(TokenType::CLOSE_ROUND, parser);
                 break;
             case TokenType::IDENTIFIER:
                 result = scope.lookup(parser.next_token.value);
@@ -324,10 +329,7 @@ namespace {
             auto name = parser.next_token.value;  // TODO: check is not a keyword
             result.push_back(name);
             parser.read_next_token();
-            if (parser.next_token.type != TokenType::DECLARE_TYPE) {
-                throw std::runtime_error("expected :");
-            }
-            parser.read_next_token();
+            expect_token(TokenType::DECLARE_TYPE, parser);
             parse_type(parser);
         }
         return result;
@@ -339,19 +341,10 @@ namespace {
         assert(parser.next_token.type == TokenType::OPEN_ROUND);
         parser.read_next_token();
         auto params = parse_named_type_list(parser);
-        if (parser.next_token.type != TokenType::CLOSE_ROUND) {
-            throw std::runtime_error("Expected )");
-        }
-        parser.read_next_token();
-        if (parser.next_token.type != TokenType::ARROW) {
-            throw std::runtime_error("Expected ->");
-        }
-        parser.read_next_token();
+        expect_token(TokenType::CLOSE_ROUND, parser);
+        expect_token(TokenType::ARROW, parser);
         parse_type(parser);  // TODO do something with return type
-        if (parser.next_token.type != TokenType::OPEN_CURLY) {
-            throw std::runtime_error("Expected {");
-        }
-        parser.read_next_token();
+        expect_token(TokenType::OPEN_CURLY, parser);
 
         auto func_stop = make_node(grlang::node::Node::Type::CONTROL_STOP);
         auto func_ptr = make_value_node(0x0FEFEFE0);  // TODO: Add sunction pointer type
@@ -367,10 +360,8 @@ namespace {
         }
 
         parse_block(parser, func_scope, {nullptr, nullptr}, func_stop);
-        if (parser.next_token.type != TokenType::CLOSE_CURLY) {
-            throw std::runtime_error("Expected }");
-        }
-        parser.read_next_token();
+        expect_token(TokenType::CLOSE_CURLY, parser);
+
         return func_ptr;
     }
 
@@ -474,10 +465,7 @@ namespace {
                 parser.read_next_token();
                 parse_type(parser);  // TODO: handle different types
                 scope_update = &Scope::declare;
-                if (parser.next_token.type != TokenType::REBIND) {
-                    throw std::runtime_error("Expected assignment");
-                }
-                parser.read_next_token();
+                expect_token(TokenType::REBIND, parser);
                 break;
             case TokenType::REBIND:
                 parser.read_next_token();
@@ -496,11 +484,8 @@ namespace {
             parser.read_next_token();
             scope.stack.emplace_back();
             parse_block(parser, scope, loop, stop);
-            if (parser.next_token.type != TokenType::CLOSE_CURLY) {
-                throw std::runtime_error("Expected }");
-            }
+            expect_token(TokenType::CLOSE_CURLY, parser);
             scope.stack.pop_back();
-            parser.read_next_token();
             break;
         }
         case TokenType::IDENTIFIER: {
@@ -528,13 +513,11 @@ namespace {
     }
 }
 
-grlang::node::Node::Ptr grlang::parse::parse(std::string_view code) {
+std::unordered_map<std::string_view, grlang::node::Node::Ptr> grlang::parse::parse_unit(std::string_view code) {
     Parser parser(code);
-    Scope scope;
-    scope.stack.emplace_back();
-    scope.control = make_node(grlang::node::Node::Type::CONTROL_START);
-    scope.declare("arg", make_node(grlang::node::Node::Type::DATA_PROJECT, 1, {scope.control}));
+    Scope scope{{{}}, make_node(grlang::node::Node::Type::CONTROL_START)};
     auto stop = make_node(grlang::node::Node::Type::CONTROL_STOP);
     parse_block(parser, scope, {}, stop);
-    return stop;
+    assert(scope.stack.size() == 1);
+    return std::move(scope.stack.front());
 }
