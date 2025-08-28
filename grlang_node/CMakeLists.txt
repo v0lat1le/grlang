@@ -14,7 +14,7 @@ target_sources(
 
 set_target_properties(
     grlang.node
-    PROPERTIES VERIFY_INTERFACE_HEADER_SETS ON EXPORT_NAME node
+    PROPERTIES VERIFY_INTERFACE_HEADER_SETS ON
 )
 
 if(GRLANG_NODE_BUILD_TESTS)

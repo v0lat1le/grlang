@@ -14,7 +14,7 @@ target_sources(
 
 set_target_properties(
     grlang.eval
-    PROPERTIES VERIFY_INTERFACE_HEADER_SETS ON EXPORT_NAME eval
+    PROPERTIES VERIFY_INTERFACE_HEADER_SETS ON
 )
 
 target_link_libraries(grlang.eval PUBLIC grlang::node)

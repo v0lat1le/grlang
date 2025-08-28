@@ -19,7 +19,7 @@ target_sources(
 
 set_target_properties(
     grlang.parse
-    PROPERTIES VERIFY_INTERFACE_HEADER_SETS ON EXPORT_NAME parse
+    PROPERTIES VERIFY_INTERFACE_HEADER_SETS ON
 )
 
 target_link_libraries(grlang.parse PUBLIC grlang::node)
