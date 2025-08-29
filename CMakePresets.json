@@ -7,17 +7,27 @@
             "binaryDir": "${sourceDir}/build/${presetName}",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
-                "GRLANG_NODE_BUILD_TESTS":    "ON",
-                "GRLANG_PARSE_BUILD_TESTS":   "ON",
-                "GRLANG_EVAL_BUILD_TESTS":    "ON",
-                "GRLANG_CODEGEN_BUILD_TESTS": "ON"
+                "GRLANG_NODE_BUILD_TESTS":  "ON",
+                "GRLANG_PARSE_BUILD_TESTS": "ON",
+                "GRLANG_EVAL_BUILD_TESTS":  "ON",
+                "GRLANG_CODEGEN_LLVM_IR_BUILD": "ON",
+                "GRLANG_CODEGEN_X86_64_BUILD":  "ON",
+                "GRLANG_CODEGEN_ARM_64_BUILD":  "ON"
             }
         },
         {
-            "name": "debug_gcc_like",
+            "name": "debug_gcc",
             "inherits": "debug_base",
             "cacheVariables": {
                 "CMAKE_CXX_FLAGS": "-Wall -Wextra -Wpedantic"
+            }
+        },
+        {
+            "name": "debug_clang",
+            "inherits": "debug_gcc",
+            "cacheVariables": {
+                "CMAKE_CXX_FLAGS": "-Wall -Wextra -Wpedantic",
+                "GRLANG_CODEGEN_LLVM_IR_BUILD_TESTS":  "ON"
             }
         },
         {
@@ -30,8 +40,12 @@
     ],
     "buildPresets": [
         {
-            "name": "debug_gcc_like",
-            "configurePreset": "debug_gcc_like"
+            "name": "debug_gcc",
+            "configurePreset": "debug_gcc"
+        },
+        {
+            "name": "debug_clang",
+            "configurePreset": "debug_clang"
         },
         {
             "name": "debug_msvc",
@@ -41,8 +55,12 @@
     ],
     "testPresets": [
         {
-            "name": "debug_gcc_like",
-            "configurePreset": "debug_gcc_like"
+            "name": "debug_gcc",
+            "configurePreset": "debug_gcc"
+        },
+        {
+            "name": "debug_clang",
+            "configurePreset": "debug_clang"
         },
         {
             "name": "debug_msvc",
@@ -52,19 +70,36 @@
     ],
     "workflowPresets": [
         {
-            "name": "debug_gcc_like",
+            "name": "debug_gcc",
             "steps": [
                 {
                     "type": "configure",
-                    "name": "debug_gcc_like"
+                    "name": "debug_gcc"
                 },
                 {
                     "type": "build",
-                    "name": "debug_gcc_like"
+                    "name": "debug_gcc"
                 },
                 {
                     "type": "test",
-                    "name": "debug_gcc_like"
+                    "name": "debug_gcc"
+                }
+            ]
+        },
+        {
+            "name": "debug_clang",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "debug_clang"
+                },
+                {
+                    "type": "build",
+                    "name": "debug_clang"
+                },
+                {
+                    "type": "test",
+                    "name": "debug_clang"
                 }
             ]
         },

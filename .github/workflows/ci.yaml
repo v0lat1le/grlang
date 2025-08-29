@@ -14,10 +14,10 @@ jobs:
             workflow: debug_msvc
           - os: ubuntu-24.04
             compiler: gcc-14
-            workflow: debug_gcc_like
+            workflow: debug_gcc
           - os: macos-15
             compiler: clang-17
-            workflow: debug_gcc_like
+            workflow: debug_clang
 
     steps:
       - name: Checkout
