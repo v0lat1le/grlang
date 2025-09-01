@@ -3,9 +3,10 @@ add_library(grlang::eval ALIAS grlang.eval)
 
 target_compile_features(grlang.eval PUBLIC cxx_std_23)
 
-target_sources(grlang.eval PRIVATE "src/eval.cpp")
 target_sources(
     grlang.eval
+    PRIVATE
+        "src/eval.cpp"
     PUBLIC
         FILE_SET HEADERS
         BASE_DIRS "include"

@@ -3,18 +3,15 @@ add_library(grlang::parse ALIAS grlang.parse)
 
 target_compile_features(grlang.parse PUBLIC cxx_std_23)
 
-target_sources(grlang.parse PRIVATE "src/parse.cpp" "src/token.cpp")
 target_sources(
     grlang.parse
+    PRIVATE
+        "src/parse.cpp"
+        "src/token.cpp"
     PUBLIC
         FILE_SET HEADERS
         BASE_DIRS "include"
         FILES "include/grlang/parse.h"
-    PRIVATE
-        FILE_SET "detail"
-        TYPE HEADERS
-        BASE_DIRS "include"
-        FILES "include/grlang/detail/token.h"
 )
 
 set_target_properties(

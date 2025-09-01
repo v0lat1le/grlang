@@ -3,9 +3,10 @@ add_library(grlang::codegen ALIAS grlang.codegen)
 
 target_compile_features(grlang.codegen PUBLIC cxx_std_23)
 
-target_sources(grlang.codegen PRIVATE "src/codegen.cpp")
 target_sources(
     grlang.codegen
+    PRIVATE
+        "src/codegen.cpp"
     PUBLIC
         FILE_SET HEADERS
         BASE_DIRS "include"
