@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <memory>
 #include <vector>
+#include <ostream>
 
 
 namespace grlang::node {
@@ -98,4 +99,6 @@ namespace grlang::node {
     int get_value_int(const Node& node);
 
     int (*op_func(grlang::node::Node::Type type))(int, int);
+
+    void print_dot(const node::Node::Ptr& root, std::ostream& output);
 }

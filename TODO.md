@@ -6,7 +6,7 @@
 - [ ] pretty print graph/IR
 - [ ] eval n-ary functions
 - [ ] better parsing errors
-- [ ] optional(?) "," and ";"
+- [ ] optional "," and ";"?
 - [ ] cleanup graph cycles
 - [ ] lazy phi
 - [ ] codegen
