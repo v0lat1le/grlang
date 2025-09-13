@@ -216,3 +216,122 @@ TEST_CASE(test_while_continue) {
     assert(arg_phi->inputs.at(1)->value == 1);
     assert(get_value_int(*arg_phi->inputs.at(2)) == 5);
 }
+
+#include <sstream>
+#include <random>
+#include <vector>
+#include <functional>
+#include <span>
+
+namespace {
+    template<std::uniform_random_bit_generator RndGen>
+    struct GeneratorState {
+        RndGen rand_eng;
+        std::ostream& output;
+    };
+    template<std::uniform_random_bit_generator RndGen>
+    using GeneratorFunction = std::function<int (GeneratorState<RndGen>&)>;
+
+    const auto& choose(const auto& container, std::uniform_random_bit_generator auto& rndgen) {
+        std::uniform_int_distribution<int> distr(0, container.size()-1);
+        return container.at(distr(rndgen));
+    }
+
+    int generate_char(std::string_view chars, std::uniform_random_bit_generator auto& rndgen, std::ostream& stream) {
+        stream << choose(chars, rndgen);
+        return 1;
+    }
+
+    template<std::uniform_random_bit_generator RndGen>
+    GeneratorFunction<RndGen> generate_word(std::string word) {
+        return [word](GeneratorState<RndGen>& state) {
+            state.output << word;
+            return word.size();
+        };
+    }
+
+    template<std::uniform_random_bit_generator RndGen>
+    GeneratorFunction<RndGen> generate_any(std::vector<GeneratorFunction<RndGen>> gens) {
+        return [gens](GeneratorState<RndGen>& state) {
+            return choose(gens, state.rand_eng)(state);
+        };
+    }
+
+    template<std::uniform_random_bit_generator RndGen>
+    GeneratorFunction<RndGen> generate_many(GeneratorFunction<RndGen> gen, int n) {
+        return [gen, n](GeneratorState<RndGen>& state) {
+            int count = 0;
+            for (int i=0; i<n; ++i) {
+                count += gen(state);
+            }
+            return count;
+        };
+    }
+    template<std::uniform_random_bit_generator RndGen>
+    GeneratorFunction<RndGen> generate_all(std::vector<GeneratorFunction<RndGen>> gens) {
+        return [gens](GeneratorState<RndGen>& state) {
+            int count = 0;
+            for (auto f: gens) {
+                count += f(state);
+            }
+            return count;
+        };
+    }
+
+    void generate(std::ostream& stream) {
+        using RndGenImpl = std::minstd_rand;
+
+        GeneratorFunction<RndGenImpl> gen_space = [](GeneratorState<RndGenImpl>& state) {
+            return generate_char(" \n\t", state.rand_eng, state.output);
+        };
+        GeneratorFunction<RndGenImpl> gen_digit = [](GeneratorState<RndGenImpl>& state) {
+            return generate_char("0123456789", state.rand_eng, state.output);
+        };
+        GeneratorFunction<RndGenImpl> gen_non_digit = [](GeneratorState<RndGenImpl>& state) {
+            return generate_char("abcdefABCDEF", state.rand_eng, state.output);
+        };
+        GeneratorFunction<RndGenImpl> gen_lit = generate_many<RndGenImpl>(gen_digit, 3);
+        GeneratorFunction<RndGenImpl> gen_ident = generate_all<RndGenImpl>({
+            gen_non_digit,
+            generate_many(generate_any<RndGenImpl>({gen_digit, gen_non_digit}), 4)
+        });
+        GeneratorFunction<RndGenImpl> gen_type = generate_word<RndGenImpl>("int");
+        GeneratorFunction<RndGenImpl> gen_expression;
+        GeneratorFunction<RndGenImpl> gen_expression_recurse = [&gen_expression](GeneratorState<RndGenImpl>& state) { return gen_expression(state); };
+        gen_expression = generate_any<RndGenImpl>({
+            generate_all<RndGenImpl>({
+                generate_word<RndGenImpl>("("),
+                gen_expression_recurse,
+                generate_word<RndGenImpl>(")")
+            }),
+            generate_all<RndGenImpl>({
+                generate_word<RndGenImpl>("-"),
+                gen_expression_recurse
+            }),
+            generate_all<RndGenImpl>({
+                gen_expression_recurse,
+                generate_any<RndGenImpl>({generate_word<RndGenImpl>("+"), generate_word<RndGenImpl>("-")}),
+                gen_expression_recurse
+            }),
+            gen_ident,
+            gen_lit
+        });
+        GeneratorFunction<RndGenImpl> gen_statement = generate_all<RndGenImpl>({
+            generate_word<RndGenImpl>("return"),
+            gen_space,
+            gen_expression
+        });
+        GeneratorFunction<RndGenImpl> gen_program = generate_many(
+            generate_all<RndGenImpl>({gen_statement, gen_space}), 1);
+
+        GeneratorState<RndGenImpl> state{RndGenImpl(1245643), stream};
+        gen_program(state);
+    }
+}
+
+TEST_CASE(test_fuzz) {
+    auto node = run_in_main("while arg<10 arg=6 return arg");
+    std::ostringstream stream;
+    generate(stream);
+    auto exports = grlang::parse::parse_unit(stream.str());
+}

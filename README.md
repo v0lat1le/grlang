@@ -25,7 +25,7 @@ expression:
     | IDENTIFIER
     | INTEGER_LITERAL
 ;
-function: '(' (IDENTIFIER ':' type)* ')' -> type statement;
+function: '(' (IDENTIFIER ':' type)* ')' '->' type statement;
 type : 'int';
 IDENTIFIER : NON_DIGIT (NON_DIGIT | DIGIT)*;
 INTEGER_LITERAL : DIGIT+;
