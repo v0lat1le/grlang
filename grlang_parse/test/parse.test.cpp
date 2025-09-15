@@ -233,8 +233,8 @@ namespace {
     using GeneratorFunction = std::function<int (GeneratorState<RndGen>&)>;
 
     const auto& choose(const auto& container, std::uniform_random_bit_generator auto& rndgen) {
-        std::uniform_int_distribution<int> distr(0, container.size()-1);
-        return container.at(distr(rndgen));
+        std::size_t idx = rndgen() % container.size();
+        return container.at(idx);
     }
 
     int generate_char(std::string_view chars, std::uniform_random_bit_generator auto& rndgen, std::ostream& stream) {
@@ -267,6 +267,7 @@ namespace {
             return count;
         };
     }
+
     template<std::uniform_random_bit_generator RndGen>
     GeneratorFunction<RndGen> generate_all(std::vector<GeneratorFunction<RndGen>> gens) {
         return [gens](GeneratorState<RndGen>& state) {
@@ -278,60 +279,78 @@ namespace {
         };
     }
 
-    void generate(int seed, std::ostream& stream) {
-        using RndGenImpl = std::minstd_rand;
-
-        GeneratorFunction<RndGenImpl> gen_space = [](GeneratorState<RndGenImpl>& state) {
+    template<std::uniform_random_bit_generator RndGen>
+    void generate(RndGen gen, std::ostream& stream) {
+        GeneratorFunction<RndGen> gen_space = [](GeneratorState<RndGen>& state) {
             return generate_char(" \n\t", state.rand_eng, state.output);
         };
-        GeneratorFunction<RndGenImpl> gen_digit = [](GeneratorState<RndGenImpl>& state) {
+        GeneratorFunction<RndGen> gen_digit = [](GeneratorState<RndGen>& state) {
             return generate_char("0123456789", state.rand_eng, state.output);
         };
-        GeneratorFunction<RndGenImpl> gen_non_digit = [](GeneratorState<RndGenImpl>& state) {
+        GeneratorFunction<RndGen> gen_non_digit = [](GeneratorState<RndGen>& state) {
             return generate_char("abcdefABCDEF", state.rand_eng, state.output);
         };
-        GeneratorFunction<RndGenImpl> gen_lit = generate_many<RndGenImpl>(gen_digit, 3);
-        GeneratorFunction<RndGenImpl> gen_ident = generate_all<RndGenImpl>({
+        GeneratorFunction<RndGen> gen_lit = generate_many<RndGen>(gen_digit, 3);
+        GeneratorFunction<RndGen> gen_ident = generate_all<RndGen>({
             gen_non_digit,
-            generate_many(generate_any<RndGenImpl>({gen_digit, gen_non_digit}), 4)
+            generate_many(generate_any<RndGen>({gen_digit, gen_non_digit}), 4)
         });
-        GeneratorFunction<RndGenImpl> gen_type = generate_word<RndGenImpl>("int");
-        GeneratorFunction<RndGenImpl> gen_expression;
-        GeneratorFunction<RndGenImpl> gen_expression_recurse = [&gen_expression](GeneratorState<RndGenImpl>& state) { return gen_expression(state); };
-        gen_expression = generate_any<RndGenImpl>({
-            generate_all<RndGenImpl>({
-                generate_word<RndGenImpl>("("),
+        GeneratorFunction<RndGen> gen_type = generate_word<RndGen>("int");
+        GeneratorFunction<RndGen> gen_expression;
+        GeneratorFunction<RndGen> gen_expression_recurse = [&gen_expression](GeneratorState<RndGen>& state) { return gen_expression(state); };
+        gen_expression = generate_any<RndGen>({
+            generate_all<RndGen>({
+                generate_word<RndGen>("("),
                 gen_expression_recurse,
-                generate_word<RndGenImpl>(")")
+                generate_word<RndGen>(")")
             }),
-            generate_all<RndGenImpl>({
-                generate_word<RndGenImpl>("-"),
+            generate_all<RndGen>({
+                generate_word<RndGen>("-"),
                 gen_expression_recurse
             }),
-            generate_all<RndGenImpl>({
+            generate_all<RndGen>({
                 gen_expression_recurse,
-                generate_any<RndGenImpl>({generate_word<RndGenImpl>("+"), generate_word<RndGenImpl>("-")}),
+                generate_any<RndGen>({generate_word<RndGen>("+"), generate_word<RndGen>("-")}),
                 gen_expression_recurse
             }),
             gen_ident,
             gen_lit
         });
-        GeneratorFunction<RndGenImpl> gen_statement = generate_all<RndGenImpl>({
-            generate_word<RndGenImpl>("return"),
+        GeneratorFunction<RndGen> gen_statement = generate_all<RndGen>({
+            generate_word<RndGen>("return"),
             gen_space,
             gen_expression
         });
-        GeneratorFunction<RndGenImpl> gen_program = generate_many(
-            generate_all<RndGenImpl>({gen_statement, gen_space}), 1);
+        GeneratorFunction<RndGen> gen_program = generate_many(
+            generate_all<RndGen>({gen_statement, gen_space}), 1);
 
-        GeneratorState<RndGenImpl> state{RndGenImpl(seed), stream};
+        GeneratorState<RndGen> state{gen, stream};
         gen_program(state);
     }
+
+    struct VectorRandomGen {
+        std::vector<uint8_t> data;
+        std::size_t index=0;
+        uint8_t operator()() {
+            if (index >= data.size()) {
+                return 0;
+            }
+            return data.at(index++);
+        }
+
+        static constexpr uint8_t min() {
+            return 0;
+        }
+
+        static constexpr uint8_t max() {
+            return 255;
+        }
+    };
 }
 
 TEST_CASE(test_fuzz) {
     auto node = run_in_main("while arg<10 arg=6 return arg");
     std::ostringstream stream;
-    generate(0, stream);
+    generate(VectorRandomGen{{0, 4, 1, 2, 3}}, stream);
     auto exports = grlang::parse::parse_unit(stream.str());
 }
