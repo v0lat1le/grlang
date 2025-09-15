@@ -73,10 +73,10 @@ namespace
         }
     }
 
-    void print_dot_helper(const Node::Ptr& root, std::ostream& output, std::map<const Node*, int>& node_ids) {
+    void print_dot_helper(const Node::Ptr& root, std::ostream& output, std::map<const Node*, std::size_t>& node_ids) {
         assert(!node_ids.contains(root.get()));
 
-        int root_id = node_ids[root.get()] = node_ids.size();
+        std::size_t root_id = node_ids[root.get()] = node_ids.size();
         output << "  " << root_id << " [label=\""<< get_node_label(root->type) << "\" shape=\""<< get_node_shape(root->type) << "\"]\n";
         for (const Node::Ptr& child: root->inputs) {
             if (!child) {
@@ -90,7 +90,6 @@ namespace
         }
     }
 }
-
 
 namespace grlang::node {
     int get_value_int(const Node& node) {
@@ -127,7 +126,7 @@ namespace grlang::node {
     }
 
     void print_dot(const Node::Ptr& root, std::ostream& output) {
-        std::map<const Node*, int> nodes;
+        std::map<const Node*, std::size_t> nodes;
         output << "digraph {\n";
         output << "  rankdir=\"BT\"\n";
         print_dot_helper(root, output, nodes);

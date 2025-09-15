@@ -120,6 +120,7 @@ namespace {
                 ctl = inv_ctl.at(prev).front();
             }
         }
+        throw std::runtime_error("function didn't return a value");
     }
 }
 

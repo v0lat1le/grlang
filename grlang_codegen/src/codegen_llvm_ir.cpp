@@ -133,7 +133,10 @@ namespace {
         std::size_t vars = 0;
         output << "define i32 @" << name << "(";
         while(vars<n_params) {
-            output << "i32 %v" << vars++ << (vars<n_params ? ", " : "");
+            output << "i32 %v" << vars++;
+            if (vars<n_params) {
+                output << ", ";
+            }
         }
         output << ") {\n";
 
