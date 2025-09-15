@@ -1,4 +1,4 @@
-fib:= (n:int)->int {
+test_main:= (n:int)->int {
     a:=0
     b:=1
     i:=0
@@ -7,9 +7,6 @@ fib:= (n:int)->int {
         a=b
         b=c
         i=i+1
-    } return a
-}
-
-main:= (arg:int)->int {
-    return fib(arg)
+    }
+    return a
 }

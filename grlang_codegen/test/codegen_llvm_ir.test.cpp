@@ -16,7 +16,7 @@ namespace {
         "    %arg_ptr = getelementptr inbounds ptr, ptr %argv, i64 1\n"
         "    %arg_str = load ptr, ptr %arg_ptr\n"
         "    %arg_val = call i32 @atoi(i8* %arg_str)\n"
-        "    %result = call i32 @grlang_main(i32 %arg_val)\n"
+        "    %result = call i32 @test_main(i32 %arg_val)\n"
         "\n"
         "    %exp_ptr = getelementptr inbounds ptr, ptr %argv, i64 2\n"
         "    %exp_str = load ptr, ptr %exp_ptr\n"
@@ -29,9 +29,6 @@ namespace {
 
     int codegen(std::unordered_map<std::string_view, grlang::node::Node::Ptr> exports, std::ostream& output) {
         output << MAIN_SHIM << "\n";
-        auto node = exports.extract("main");
-        node.key() = "grlang_main";
-        exports.insert(std::move(node));
         return grlang::codegen::gen_llvm_ir(exports, output) ? 0 : 1;
     }
 }

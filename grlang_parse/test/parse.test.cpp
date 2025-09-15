@@ -278,7 +278,7 @@ namespace {
         };
     }
 
-    void generate(std::ostream& stream) {
+    void generate(int seed, std::ostream& stream) {
         using RndGenImpl = std::minstd_rand;
 
         GeneratorFunction<RndGenImpl> gen_space = [](GeneratorState<RndGenImpl>& state) {
@@ -324,7 +324,7 @@ namespace {
         GeneratorFunction<RndGenImpl> gen_program = generate_many(
             generate_all<RndGenImpl>({gen_statement, gen_space}), 1);
 
-        GeneratorState<RndGenImpl> state{RndGenImpl(1245643), stream};
+        GeneratorState<RndGenImpl> state{RndGenImpl(seed), stream};
         gen_program(state);
     }
 }
@@ -332,6 +332,6 @@ namespace {
 TEST_CASE(test_fuzz) {
     auto node = run_in_main("while arg<10 arg=6 return arg");
     std::ostringstream stream;
-    generate(stream);
+    generate(0, stream);
     auto exports = grlang::parse::parse_unit(stream.str());
 }

@@ -167,7 +167,7 @@ namespace {
                     return it->second;
                 }
             }
-            return nullptr;
+            throw std::runtime_error("not defined");
         }
 
         void update(const std::string_view& name, grlang::node::Node::Ptr node) {
@@ -347,7 +347,7 @@ namespace {
         expect_token(TokenType::OPEN_CURLY, parser);
 
         auto func_stop = make_node(grlang::node::Node::Type::CONTROL_STOP);
-        auto func_ptr = make_value_node(0x0FEFEFE0);  // TODO: Add sunction pointer type
+        auto func_ptr = make_value_node(0x0FEFEFE0);  // TODO: Add function pointer type
         func_ptr->inputs.push_back(func_stop);
 
         Scope func_scope;

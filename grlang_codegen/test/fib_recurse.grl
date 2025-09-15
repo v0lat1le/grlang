@@ -1,9 +1,8 @@
 fib:= (n:int) -> int {
-    if n<2
-        return n
+    if n<2 return n
     return fib(n-1)+fib(n-2)
 }
 
-main:= (arg:int)->int {
+test_main:= (arg:int)->int {
     return fib(arg)
 }

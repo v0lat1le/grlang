@@ -1,0 +1,4 @@
+test_main:= (n:int)->int {
+    m := n*2
+    return m+6
+}

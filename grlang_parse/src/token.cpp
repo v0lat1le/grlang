@@ -30,7 +30,7 @@ namespace {
     }
 
     std::string_view read_identifier(std::string_view& code) {
-        return read_class(code, std::isalnum);
+        return read_class(code, [](int ch) { return std::isalnum(ch) | (ch=='_'); });
     }
 }
 

@@ -91,7 +91,7 @@ namespace {
     int eval_graph(const grlang::node::Node *ctl, Cache& cache, NodeMap &inv_ctl, NodeMap &reg2phi) {
         assert(ctl->type == grlang::node::Node::Type::CONTROL_START);
         const grlang::node::Node* prev = nullptr;
-        while (true) {
+        while (ctl->type != grlang::node::Node::Type::CONTROL_STOP) {
             if (ctl->type == grlang::node::Node::Type::CONTROL_RETURN) {
                 return eval_expression(ctl->inputs.at(1), cache);
             }

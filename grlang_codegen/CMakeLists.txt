@@ -6,7 +6,7 @@ target_compile_features(grlang.codegen PUBLIC cxx_std_23)
 target_sources(
     grlang.codegen
     PRIVATE
-        "src/codegen.cpp"
+        "src/codegen_llvm_ir.cpp"
     PUBLIC
         FILE_SET HEADERS
         BASE_DIRS "include"
@@ -21,7 +21,7 @@ set_target_properties(
 target_link_libraries(grlang.codegen PUBLIC grlang::node)
 
 if(GRLANG_CODEGEN_LLVM_IR_BUILD_TESTS)
-    add_executable(grlang_codegen_test "test/codegen.test.cpp")
+    add_executable(grlang_codegen_test "test/codegen_llvm_ir.test.cpp")
     target_link_libraries(grlang_codegen_test PRIVATE grlang::codegen grlang::parse grlang::node)
 
     find_program(GRLANG_CLANG "clang")
@@ -33,6 +33,7 @@ if(GRLANG_CODEGEN_LLVM_IR_BUILD_TESTS)
         set_tests_properties("grlang_codegen_test.run_${test_file}" PROPERTIES DEPENDS "grlang_codegen_test.cc_${test_file}")
     endfunction()
 
-    grl_codegen_test(fib_loop 10 10)
-    grl_codegen_test(fib_recurse 10 10)
+    grl_codegen_test(basic_expr 3 12)
+    # grl_codegen_test(fib_loop 10 55)
+    # grl_codegen_test(fib_recurse 10 55)
 endif()
