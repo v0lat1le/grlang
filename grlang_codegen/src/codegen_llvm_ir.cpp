@@ -57,30 +57,18 @@ namespace {
     using Cache = std::map<const grlang::node::Node*, std::size_t>;
 
     const char* op_code(grlang::node::Node::Type type) {
-        switch (type)
-        {
-        case grlang::node::Node::Type::DATA_OP_MUL:
-            return "mul";
-        case grlang::node::Node::Type::DATA_OP_DIV:
-            return "div";
-        case grlang::node::Node::Type::DATA_OP_ADD:
-            return "add";
-        case grlang::node::Node::Type::DATA_OP_SUB:
-            return "sub";
-        case grlang::node::Node::Type::DATA_OP_GT:
-            return "gt";
-        case grlang::node::Node::Type::DATA_OP_GEQ:
-            return "ge";
-        case grlang::node::Node::Type::DATA_OP_LT:
-            return "lt";
-        case grlang::node::Node::Type::DATA_OP_LEQ:
-            return "le";
-        case grlang::node::Node::Type::DATA_OP_EQ:
-            return "eq";
-        case grlang::node::Node::Type::DATA_OP_NEQ:
-            return "neq";
-        default:
-            throw std::runtime_error("bad op" + std::to_string((int)type));
+        switch (type) {
+            case grlang::node::Node::Type::DATA_OP_MUL: return "mul";
+            case grlang::node::Node::Type::DATA_OP_DIV: return "div";
+            case grlang::node::Node::Type::DATA_OP_ADD: return "add";
+            case grlang::node::Node::Type::DATA_OP_SUB: return "sub";
+            case grlang::node::Node::Type::DATA_OP_GT: return "gt";
+            case grlang::node::Node::Type::DATA_OP_GEQ: return "ge";
+            case grlang::node::Node::Type::DATA_OP_LT: return "lt";
+            case grlang::node::Node::Type::DATA_OP_LEQ: return "le";
+            case grlang::node::Node::Type::DATA_OP_EQ: return "eq";
+            case grlang::node::Node::Type::DATA_OP_NEQ: return "neq";
+            default: throw std::runtime_error("bad op" + std::to_string((int)type));
         }
     }
 

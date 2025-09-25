@@ -47,46 +47,46 @@ namespace grlang::parse::detail {
             return {TokenType::IDENTIFIER, read_identifier(code)};
         }
         switch (code[0]) {
-        case '+':
-            return {TokenType::OPERATOR_PLUS, read_chars(code, 1)};
-        case '-':
-            return code.size() > 1 && code[1] == '>' ?
-                Token{TokenType::ARROW, read_chars(code, 2)} :
-                Token{TokenType::OPERATOR_MINUS, read_chars(code, 1)};
-        case '*':
-            return {TokenType::OPERATOR_STAR, read_chars(code, 1)};
-        case '/':
-            return {TokenType::OPERATOR_SLASH, read_chars(code, 1)};
-        case '{':
-            return {TokenType::OPEN_CURLY, read_chars(code, 1)};
-        case '}':
-            return {TokenType::CLOSE_CURLY, read_chars(code, 1)};
-        case '(':
-            return {TokenType::OPEN_ROUND, read_chars(code, 1)};
-        case ')':
-            return {TokenType::CLOSE_ROUND, read_chars(code, 1)};
-        case ',':
-            return {TokenType::COMMA, read_chars(code, 1)};
-        case ':':
-            return code.size() > 1 && code[1] == '=' ?
-                Token{TokenType::DECLARE_AUTO, read_chars(code, 2)} :
-                Token{TokenType::DECLARE_TYPE, read_chars(code, 1)};
-        case '=':
-            return code.size() > 1 && code[1] == '=' ?
-                Token{TokenType::OPERATOR_EQ, read_chars(code, 2)} :
-                Token{TokenType::REBIND, read_chars(code, 1)};
-        case '!':
-            return code.size() > 1 && code[1] == '=' ?
-                Token{TokenType::OPERATOR_NEQ, read_chars(code, 2)} :
-                Token{TokenType::OPERATOR_NOT, read_chars(code, 1)};
-        case '>':
-            return code.size() > 1 && code[1] == '=' ?
-                Token{TokenType::OPERATOR_GEQ, read_chars(code, 2)} :
-                Token{TokenType::OPERATOR_GT, read_chars(code, 1)};
-        case '<':
-            return code.size() > 1 && code[1] == '=' ?
-                Token{TokenType::OPERATOR_LEQ, read_chars(code, 2)} :
-                Token{TokenType::OPERATOR_LT, read_chars(code, 1)};
+            case '+':
+                return {TokenType::OPERATOR_PLUS, read_chars(code, 1)};
+            case '-':
+                return code.size() > 1 && code[1] == '>' ?
+                    Token{TokenType::ARROW, read_chars(code, 2)} :
+                    Token{TokenType::OPERATOR_MINUS, read_chars(code, 1)};
+            case '*':
+                return {TokenType::OPERATOR_STAR, read_chars(code, 1)};
+            case '/':
+                return {TokenType::OPERATOR_SLASH, read_chars(code, 1)};
+            case '{':
+                return {TokenType::OPEN_CURLY, read_chars(code, 1)};
+            case '}':
+                return {TokenType::CLOSE_CURLY, read_chars(code, 1)};
+            case '(':
+                return {TokenType::OPEN_ROUND, read_chars(code, 1)};
+            case ')':
+                return {TokenType::CLOSE_ROUND, read_chars(code, 1)};
+            case ',':
+                return {TokenType::COMMA, read_chars(code, 1)};
+            case ':':
+                return code.size() > 1 && code[1] == '=' ?
+                    Token{TokenType::DECLARE_AUTO, read_chars(code, 2)} :
+                    Token{TokenType::DECLARE_TYPE, read_chars(code, 1)};
+            case '=':
+                return code.size() > 1 && code[1] == '=' ?
+                    Token{TokenType::OPERATOR_EQ, read_chars(code, 2)} :
+                    Token{TokenType::REBIND, read_chars(code, 1)};
+            case '!':
+                return code.size() > 1 && code[1] == '=' ?
+                    Token{TokenType::OPERATOR_NEQ, read_chars(code, 2)} :
+                    Token{TokenType::OPERATOR_NOT, read_chars(code, 1)};
+            case '>':
+                return code.size() > 1 && code[1] == '=' ?
+                    Token{TokenType::OPERATOR_GEQ, read_chars(code, 2)} :
+                    Token{TokenType::OPERATOR_GT, read_chars(code, 1)};
+            case '<':
+                return code.size() > 1 && code[1] == '=' ?
+                    Token{TokenType::OPERATOR_LEQ, read_chars(code, 2)} :
+                    Token{TokenType::OPERATOR_LT, read_chars(code, 1)};
         }
         return {TokenType::INVALID_INPUT, code};
     }

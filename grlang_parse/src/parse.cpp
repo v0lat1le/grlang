@@ -478,37 +478,37 @@ namespace {
 
     void parse_statement(Parser& parser, Scope& scope, const LoopState& loop, const grlang::node::Node::Ptr& stop) {
         switch (parser.next_token.type) {
-        case TokenType::END_OF_INPUT:
-            break;
-        case TokenType::OPEN_CURLY: {
-            parser.read_next_token();
-            scope.stack.emplace_back();
-            parse_block(parser, scope, loop, stop);
-            expect_token(TokenType::CLOSE_CURLY, parser);
-            scope.stack.pop_back();
-            break;
-        }
-        case TokenType::IDENTIFIER: {
-            if (parser.next_token.value == "return") {
+            case TokenType::END_OF_INPUT:
+                break;
+            case TokenType::OPEN_CURLY: {
                 parser.read_next_token();
-                auto result = make_peep_node(grlang::node::Node::Type::CONTROL_RETURN, {scope.control, parse_expression(parser, scope, 255)});
-                stop->inputs.push_back(result);
-                scope.control = make_node(grlang::node::Node::Type::CONTROL_DEAD);
-            } else if (parser.next_token.value == "if") {
-                parse_ifelse(parser, scope, loop, stop);
-            } else if (parser.next_token.value == "while") {
-                parse_while(parser, scope, stop);
-            } else if (parser.next_token.value == "break") {
-                parse_break(parser, scope, loop);
-            } else if (parser.next_token.value == "continue") {
-                parse_continue(parser, scope, loop);
-            } else {
-                parse_identifier_things(parser, scope);
+                scope.stack.emplace_back();
+                parse_block(parser, scope, loop, stop);
+                expect_token(TokenType::CLOSE_CURLY, parser);
+                scope.stack.pop_back();
+                break;
             }
-            break;
-        }
-        default:
-            throw std::runtime_error("Unexpected token");
+            case TokenType::IDENTIFIER: {
+                if (parser.next_token.value == "return") {
+                    parser.read_next_token();
+                    auto result = make_peep_node(grlang::node::Node::Type::CONTROL_RETURN, {scope.control, parse_expression(parser, scope, 255)});
+                    stop->inputs.push_back(result);
+                    scope.control = make_node(grlang::node::Node::Type::CONTROL_DEAD);
+                } else if (parser.next_token.value == "if") {
+                    parse_ifelse(parser, scope, loop, stop);
+                } else if (parser.next_token.value == "while") {
+                    parse_while(parser, scope, stop);
+                } else if (parser.next_token.value == "break") {
+                    parse_break(parser, scope, loop);
+                } else if (parser.next_token.value == "continue") {
+                    parse_continue(parser, scope, loop);
+                } else {
+                    parse_identifier_things(parser, scope);
+                }
+                break;
+            }
+            default:
+                throw std::runtime_error("Unexpected token");
         }
     }
 }
